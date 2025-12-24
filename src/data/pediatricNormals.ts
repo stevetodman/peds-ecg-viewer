@@ -139,7 +139,28 @@ export const PEDIATRIC_NORMALS: Readonly<Record<string, AgeNormals>> = {
     notes: 'Transitional circulation. Extreme right axis normal.',
   },
 
-  neonate_1_7d: {
+  neonate_1_3d: {
+    heartRate: { p2: 90, p50: 140, p98: 175, mean: 138, sd: 22 },
+    prInterval: { p2: 70, p50: 100, p98: 140 },
+    qrsDuration: { p2: 40, p50: 60, p98: 80 },
+    qtcBazett: { p2: 370, p50: 420, p98: 470 },
+    qrsAxis: { p2: 65, p50: 125, p98: 185 },
+    pAxis: { p2: 0, p50: 50, p98: 90 },
+    rWaveV1: { p2: 5, p50: 13, p98: 25 },
+    sWaveV1: { p2: 0, p50: 5, p98: 15 },
+    rWaveV6: { p2: 1, p50: 5, p98: 13 },
+    sWaveV6: { p2: 0, p50: 3, p98: 10 },
+    rsRatioV1: { p2: 0.5, p50: 2.5, p98: 15.0 },
+    rsRatioV6: { p2: 0.2, p50: 1.5, p98: 5.0 },
+    tWaveV1: {
+      normal: ['upright', 'inverted', 'flat'],
+      abnormal: [],
+      notes: 'Transitional period. T-wave may be upright or inverting.',
+    },
+    notes: 'Transitional circulation continuing. T-wave inversion beginning.',
+  },
+
+  neonate_3_7d: {
     heartRate: { p2: 90, p50: 140, p98: 175, mean: 138, sd: 22 },
     prInterval: { p2: 70, p50: 100, p98: 140 },
     qrsDuration: { p2: 40, p50: 60, p98: 80 },
@@ -155,9 +176,9 @@ export const PEDIATRIC_NORMALS: Readonly<Record<string, AgeNormals>> = {
     tWaveV1: {
       normal: ['inverted', 'flat'],
       abnormal: ['upright'],
-      notes: 'T-wave should invert by day 3-7. Upright T after day 3 suggests RVH.',
+      notes: 'T-wave should be inverted. Upright T suggests RVH.',
     },
-    notes: 'T-wave inversion in V1 expected by day 3-7.',
+    notes: 'T-wave inversion in V1 expected. Upright T abnormal.',
   },
 
   neonate_8_30d: {

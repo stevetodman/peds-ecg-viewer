@@ -14,8 +14,8 @@ import {
 } from '../../../src/data/ageGroups';
 
 describe('AGE_GROUPS', () => {
-  it('should have 12 age groups', () => {
-    expect(AGE_GROUPS).toHaveLength(12);
+  it('should have 13 age groups', () => {
+    expect(AGE_GROUPS).toHaveLength(13);
   });
 
   it('should have contiguous age ranges', () => {
@@ -45,8 +45,15 @@ describe('getAgeGroup', () => {
     expect(getAgeGroup(0).id).toBe('neonate_0_24h');
   });
 
-  it('should return neonate_1_7d for age 3 days', () => {
-    expect(getAgeGroup(3).id).toBe('neonate_1_7d');
+  it('should return neonate_1_3d for age 1-2 days (transitional)', () => {
+    expect(getAgeGroup(1).id).toBe('neonate_1_3d');
+    expect(getAgeGroup(2).id).toBe('neonate_1_3d');
+  });
+
+  it('should return neonate_3_7d for age 3-7 days (post-transitional)', () => {
+    expect(getAgeGroup(3).id).toBe('neonate_3_7d');
+    expect(getAgeGroup(5).id).toBe('neonate_3_7d');
+    expect(getAgeGroup(7).id).toBe('neonate_3_7d');
   });
 
   it('should return infant_1_3mo for age 60 days', () => {

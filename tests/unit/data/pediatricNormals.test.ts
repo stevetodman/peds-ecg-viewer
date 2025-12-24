@@ -165,6 +165,19 @@ describe('isTWaveV1Normal', () => {
     expect(isTWaveV1Normal('upright', 0)).toBe(true);
   });
 
+  it('should accept upright T in V1 for days 1-2 (transitional period)', () => {
+    // This is the key fix - days 1-2 are transitional, upright T is acceptable
+    expect(isTWaveV1Normal('upright', 1)).toBe(true);
+    expect(isTWaveV1Normal('upright', 2)).toBe(true);
+  });
+
+  it('should reject upright T in V1 after day 3 (post-transitional)', () => {
+    // After day 3, upright T suggests RVH
+    expect(isTWaveV1Normal('upright', 3)).toBe(false);
+    expect(isTWaveV1Normal('upright', 5)).toBe(false);
+    expect(isTWaveV1Normal('upright', 7)).toBe(false);
+  });
+
   it('should reject upright T in V1 after day 7', () => {
     expect(isTWaveV1Normal('upright', 10)).toBe(false);
   });
