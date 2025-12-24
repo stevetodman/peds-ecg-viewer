@@ -28,3 +28,19 @@ export {
   validateMeasurement,
   MEASUREMENT_RANGES,
 } from './validation';
+
+// Logging utilities
+export {
+  Logger,
+  LogLevel,
+  createLogger,
+  createSilentLogger,
+  configureLogger,
+  configureFromEnvironment,
+  setLogLevel,
+  getLogLevel,
+  defaultLogger,
+  type LogEntry,
+  type LoggerConfig,
+  type LogLevelName,
+} from './logger';
