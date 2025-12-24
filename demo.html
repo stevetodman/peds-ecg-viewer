@@ -2927,7 +2927,7 @@
       let html = '<table class="measurements-table" style="width: auto;"><thead><tr><th>ECG ID</th><th>Saved</th><th>Action</th></tr></thead><tbody>';
 
       savedECGs.forEach(id => {
-        const data = localStorage.getItem('gemuse_ecg_' + id);
+        const data = localStorage.getItem('peds_ecg_' + id);
         let savedAt = '---';
         try {
           const parsed = JSON.parse(data);
@@ -2953,7 +2953,7 @@
 
     window.deleteSavedECG = function(id) {
       if (confirm('Delete ECG: ' + id + '?')) {
-        localStorage.removeItem('gemuse_ecg_' + id);
+        localStorage.removeItem('peds_ecg_' + id);
         updateHistoryList();
       }
     };
@@ -3483,7 +3483,7 @@
         } : null,
         savedAt: new Date().toISOString()
       };
-      localStorage.setItem('gemuse_ecg_' + ecgId, JSON.stringify(data));
+      localStorage.setItem('peds_ecg_' + ecgId, JSON.stringify(data));
       alert('ECG saved to local storage.\nID: ' + ecgId);
     }
 
@@ -3499,15 +3499,15 @@
       const keys = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && key.startsWith('gemuse_ecg_')) {
-          keys.push(key.replace('gemuse_ecg_', ''));
+        if (key && key.startsWith('peds_ecg_')) {
+          keys.push(key.replace('peds_ecg_', ''));
         }
       }
       return keys.sort();
     }
 
     function loadSavedECG(id) {
-      const data = localStorage.getItem('gemuse_ecg_' + id);
+      const data = localStorage.getItem('peds_ecg_' + id);
       if (!data) {
         alert('ECG not found: ' + id);
         return;

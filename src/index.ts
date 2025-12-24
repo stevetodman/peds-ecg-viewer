@@ -165,4 +165,4 @@ export {
 
 // Note: Renderer exports are available via direct import from './renderer'
 // They require browser environment (Canvas API)
-// Example: import { ECGRenderer } from 'gemuse/renderer';
+// Example: import { ECGRenderer } from 'peds-ecg-viewer/renderer';

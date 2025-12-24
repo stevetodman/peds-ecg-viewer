@@ -241,7 +241,7 @@ export class InMemoryAuditStorage implements AuditStorage {
  * LocalStorage-based storage implementation (browser)
  */
 export class LocalStorageAuditStorage implements AuditStorage {
-  private readonly key = 'gemuse_audit_log';
+  private readonly key = 'peds_ecg_audit_log';
 
   private getEvents(): AuditEvent[] {
     if (typeof localStorage === 'undefined') return [];
