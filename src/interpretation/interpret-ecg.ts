@@ -12,8 +12,12 @@ import {
   analyzeIntervals,
   analyzeHypertrophy,
   analyzeRepolarization,
+  analyzePreexcitation,
+  analyzeBrugada,
   VoltageData,
   TWavePolarity,
+  PreexcitationInput,
+  BrugadaInput,
 } from './analyzers';
 import { combineFindings } from './summary';
 
@@ -44,6 +48,12 @@ export interface InterpretationInput {
 
   /** Optional T-wave polarity in V1 for age-specific assessment */
   tWaveV1Polarity?: TWavePolarity;
+
+  /** Optional pre-excitation/WPW detection input */
+  preexcitation?: Partial<PreexcitationInput>;
+
+  /** Optional Brugada pattern detection input */
+  brugada?: BrugadaInput;
 }
 
 /**
@@ -186,6 +196,25 @@ export function interpretECG(
       ageDays
     )
   );
+
+  // 6. Pre-excitation (WPW) analysis
+  // Always run with PR and QRS from measurements; delta wave info is optional
+  findings.push(
+    ...analyzePreexcitation(
+      {
+        pr: measurements.pr,
+        qrs: measurements.qrs,
+        deltaWaveDetected: input.preexcitation?.deltaWaveDetected,
+        deltaWaveDuration: input.preexcitation?.deltaWaveDuration,
+      },
+      ageDays
+    )
+  );
+
+  // 7. Brugada pattern analysis (if ST/morphology data provided)
+  if (input.brugada) {
+    findings.push(...analyzeBrugada(input.brugada, ageDays));
+  }
 
   // Apply confidence filter
   findings = filterByConfidence(findings, opts.confidenceThreshold ?? 0);
