@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Reference materials (may contain PHI)
+reference/muse_samples/*.pdf
+reference/muse_samples/*.png
+reference/muse_samples/*.jpg
+
+# Keep reference structure
+!reference/muse_samples/.gitkeep
+!reference/measurements/.gitkeep
+!reference/fonts/.gitkeep
+
+# Large data files (download separately)
+data/zzu-pecg/
+
+# VS Code extension test artifacts
+xai-vscode-extension/
