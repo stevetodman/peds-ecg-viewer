@@ -382,26 +382,21 @@ export async function digitizeWithConsoleVerification(
   const digitizer = new HumanVerifiedDigitizer({
     apiKeys,
     callbacks: {
-      onQuickReview: async (_img, result) => {
-        console.log('\n=== QUICK REVIEW ===');
-        console.log(`Confidence: ${(result.confidence * 100).toFixed(1)}%`);
-        console.log(`Leads: ${Object.keys(result.signal?.leads ?? {}).join(', ')}`);
-        console.log('Auto-approving for demo...');
+      onQuickReview: async (_img, _result) => {
+        // Auto-approve for demo mode
         return true;
       },
-      onDetailedReview: async (_img, result) => {
-        console.log('\n=== DETAILED REVIEW ===');
-        console.log(`Confidence: ${(result.confidence * 100).toFixed(1)}%`);
-        console.log('Auto-approving for demo...');
-        return null; // No corrections
+      onDetailedReview: async (_img, _result) => {
+        // No corrections in demo mode
+        return null;
       },
       onManualDigitization: async (_img) => {
-        console.log('\n=== MANUAL DIGITIZATION ===');
-        console.log('Would show UI for manual panel selection...');
-        // Return default 12-lead layout
+        // Manual digitization requires UI implementation
         throw new Error('Manual digitization requires UI implementation');
       },
-      onStatus: (msg) => console.log(`[Status] ${msg}`),
+      onStatus: (_msg) => {
+        // Status updates silenced in production
+      },
     },
   });
 

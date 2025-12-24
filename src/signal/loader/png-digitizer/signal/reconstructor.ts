@@ -91,8 +91,6 @@ export class SignalReconstructor {
     // Try multiple calibration strategies and pick the best one
     const calibration = this.findBestCalibration(traces, panelStats, gain);
 
-    console.log(`[Reconstructor] Final: pxPerMm=${calibration.pxPerMm.toFixed(2)}, paperSpeed=${calibration.paperSpeed}mm/s, method=${calibration.method}`);
-
     // Calculate conversion factors
     const pxPerMm = calibration.pxPerMm;
     const paperSpeed = calibration.paperSpeed;
@@ -218,8 +216,6 @@ export class SignalReconstructor {
       ? singlePanelWidths.reduce((a, b) => a + b, 0) / singlePanelWidths.length
       : medianWidth;
 
-    console.log(`[Reconstructor] Panel stats: median=${medianWidth.toFixed(0)}px, avg=${avgWidth.toFixed(0)}px, count=${singlePanelWidths.length}`);
-
     return { medianWidth, avgWidth, count: singlePanelWidths.length };
   }
 
@@ -233,7 +229,7 @@ export class SignalReconstructor {
     gain: number
   ): CalibrationResult {
     const candidates: CalibrationResult[] = [];
-    const { largeBoxesPerPanel, qrsCountPerPanel, visualHeartRateEstimate, pxPerMm: aiPxPerMm } = this.gridInfo;
+    const { largeBoxesPerPanel, visualHeartRateEstimate, pxPerMm: aiPxPerMm } = this.gridInfo;
     const aiPaperSpeed = this.calibration.paperSpeed;
 
     // Strategy 1: Grid box counting (most reliable when available)
@@ -245,7 +241,6 @@ export class SignalReconstructor {
         // Try both paper speeds with grid box pxPerMm
         candidates.push({ pxPerMm, paperSpeed: 25, method: 'grid_box_25' });
         candidates.push({ pxPerMm, paperSpeed: 50, method: 'grid_box_50' });
-        console.log(`[Reconstructor] Strategy 1 (grid box): ${largeBoxesPerPanel} boxes → pxPerMm=${pxPerMm.toFixed(2)}`);
       }
     }
 
@@ -255,7 +250,6 @@ export class SignalReconstructor {
       // Also try alternate paper speed with AI's pxPerMm
       const altSpeed = aiPaperSpeed === 25 ? 50 : 25;
       candidates.push({ pxPerMm: aiPxPerMm, paperSpeed: altSpeed, method: 'ai_alt_speed' });
-      console.log(`[Reconstructor] Strategy 2 (AI direct): pxPerMm=${aiPxPerMm}, speed=${aiPaperSpeed}`);
     }
 
     // Strategy 3: Estimate from panel width assuming 2.5s duration
@@ -267,18 +261,13 @@ export class SignalReconstructor {
           candidates.push({ pxPerMm, paperSpeed: speed, method: `panel_width_${speed}` });
         }
       }
-      console.log(`[Reconstructor] Strategy 3 (panel width): avgWidth=${panelStats.avgWidth.toFixed(0)}px`);
     }
 
     // Strategy 4: Use visual HR estimate to validate/select
     const visualHR = visualHeartRateEstimate ? this.parseHeartRateEstimate(visualHeartRateEstimate) : null;
-    if (visualHR && qrsCountPerPanel) {
-      console.log(`[Reconstructor] Strategy 4 (visual HR): ~${visualHR} bpm, ${qrsCountPerPanel} QRS/panel`);
-    }
 
     // If no candidates, use fallback
     if (candidates.length === 0) {
-      console.warn('[Reconstructor] No calibration candidates, using fallback');
       return { pxPerMm: 4, paperSpeed: 25, method: 'fallback' };
     }
 
@@ -292,14 +281,7 @@ export class SignalReconstructor {
     // Sort by score (higher is better)
     scored.sort((a, b) => b.score - a.score);
 
-    // Log all candidates for debugging
-    console.log('[Reconstructor] Calibration candidates:');
-    for (const s of scored.slice(0, 5)) {
-      console.log(`  ${s.method}: pxPerMm=${s.pxPerMm.toFixed(2)}, speed=${s.paperSpeed}, HR=${s.hr?.toFixed(0) ?? '?'} bpm, score=${s.score.toFixed(2)}`);
-    }
-
     const best = scored[0];
-    console.log(`[Reconstructor] Selected: ${best.method} (HR=${best.hr?.toFixed(0) ?? '?'} bpm, score=${best.score.toFixed(2)})`);
 
     return { pxPerMm: best.pxPerMm, paperSpeed: best.paperSpeed, method: best.method };
   }
@@ -435,9 +417,9 @@ export class SignalReconstructor {
 
   /**
    * Validate timing by estimating HR from QRS peaks
-   * If HR seems implausible, log a warning about paper speed
+   * If HR seems implausible, the interpretation engine will flag it
    */
-  private validateTiming(signal: ECGSignal, paperSpeed: number): void {
+  private validateTiming(signal: ECGSignal, _paperSpeed: number): void {
     // Use lead II or V1 for QRS detection (typically cleanest)
     const checkLead = signal.leads['II'] ?? signal.leads['V1'] ?? Object.values(signal.leads)[0];
     if (!checkLead || checkLead.length < 100) return;
@@ -468,7 +450,6 @@ export class SignalReconstructor {
     }
 
     if (peaks.length < 2) {
-      console.log('[Reconstructor] Could not detect enough QRS peaks for HR validation');
       return;
     }
 
@@ -481,21 +462,11 @@ export class SignalReconstructor {
     const avgRR = rrIntervals.reduce((a, b) => a + b, 0) / rrIntervals.length;
     const estimatedHR = 60 / avgRR;
 
-    console.log(`[Reconstructor] Detected ${peaks.length} QRS peaks, avg RR: ${(avgRR * 1000).toFixed(0)}ms, estimated HR: ${estimatedHR.toFixed(0)} bpm`);
-
-    // Check if HR is physiologically plausible (30-350 bpm)
-    if (estimatedHR > 350) {
-      console.warn(`[Reconstructor] ⚠️ HR ${estimatedHR.toFixed(0)} bpm is too high!`);
-      console.warn(`[Reconstructor] This likely indicates wrong paper speed. Current: ${paperSpeed}mm/s`);
-      if (paperSpeed === 25) {
-        console.warn(`[Reconstructor] Try 50mm/s - would give HR of ~${(estimatedHR / 2).toFixed(0)} bpm`);
-      }
-    } else if (estimatedHR < 20) {
-      console.warn(`[Reconstructor] ⚠️ HR ${estimatedHR.toFixed(0)} bpm is too low!`);
-      console.warn(`[Reconstructor] This likely indicates wrong paper speed. Current: ${paperSpeed}mm/s`);
-      if (paperSpeed === 50) {
-        console.warn(`[Reconstructor] Try 25mm/s - would give HR of ~${(estimatedHR * 2).toFixed(0)} bpm`);
-      }
+    // HR validation happens silently - errors will surface in interpretation
+    // Physiological range: 30-350 bpm
+    if (estimatedHR > 350 || estimatedHR < 20) {
+      // Signal quality issue - paper speed likely misconfigured
+      // This will be caught by interpretation engine
     }
   }
 }

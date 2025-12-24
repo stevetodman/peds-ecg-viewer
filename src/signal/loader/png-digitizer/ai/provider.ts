@@ -135,8 +135,6 @@ export abstract class BaseAIProvider implements AIProvider {
    * Anthropic API limit is 5MB on the base64-encoded string
    */
   private async imageDataToBase64(imageData: ImageData): Promise<string> {
-    console.log('[AI Provider] imageDataToBase64 called - compression code is running');
-
     // Anthropic's 5MB limit is on the base64-encoded string, not decoded bytes
     // Base64 adds ~33% overhead, so 5MB base64 ≈ 3.75MB raw
     const API_LIMIT_CHARS = 5 * 1024 * 1024; // 5 MB limit on base64 string length
@@ -145,25 +143,16 @@ export abstract class BaseAIProvider implements AIProvider {
     let width = imageData.width;
     let height = imageData.height;
 
-    console.log(`[AI Provider] Processing image: ${width}x${height}`);
-
     // First, try without any compression
     let base64 = await this.imageDataToBase64Raw(imageData);
 
-    console.log(`[AI Provider] Original image: ${width}x${height}, base64 length: ${base64.length} (${(base64.length / 1024 / 1024).toFixed(2)}MB)`);
-
     // If under limit, we're done - no compression needed
     if (base64.length <= API_LIMIT_CHARS) {
-      console.log(`[AI Provider] Image is under 5MB limit, no compression needed`);
       return base64;
     }
 
-    // Need to compress
-    console.log(`[AI Provider] Image exceeds 5MB API limit (${(base64.length / 1024 / 1024).toFixed(2)}MB), compressing...`);
-
     // Try JPEG first (usually much smaller than PNG)
     base64 = await this.imageDataToBase64Raw(imageData, 'image/jpeg', 0.92);
-    console.log(`[AI Provider] JPEG quality 0.92: ${(base64.length / 1024 / 1024).toFixed(2)}MB`);
 
     if (base64.length <= API_LIMIT_CHARS) {
       return base64;
@@ -180,8 +169,6 @@ export abstract class BaseAIProvider implements AIProvider {
 
       // Use JPEG with good quality
       base64 = await this.imageDataToBase64Raw(currentImageData, 'image/jpeg', 0.85);
-
-      console.log(`[AI Provider] Resized to ${width}x${height} (${(scale * 100).toFixed(0)}%), ${(base64.length / 1024 / 1024).toFixed(2)}MB`);
 
       scale -= 0.1;
     }

@@ -103,8 +103,6 @@ export class MultiPassRefiner {
     const candidates = this.generateParameterCandidates(bestParameters);
 
     for (let pass = 0; pass < this.options.maxPasses; pass++) {
-      console.log(`[Refiner] Pass ${pass + 1}/${this.options.maxPasses}`);
-
       // Try each candidate
       for (const params of candidates) {
         const { signal, validation } = this.tryParameters(params);
@@ -114,8 +112,6 @@ export class MultiPassRefiner {
           bestSignal = signal;
           bestValidation = validation;
           bestParameters = params;
-
-          console.log(`[Refiner] New best: score=${bestScore.toFixed(3)}, params=${JSON.stringify(params)}`);
         }
       }
 
@@ -123,7 +119,6 @@ export class MultiPassRefiner {
 
       // Check if we've reached target quality
       if (bestScore >= this.options.targetQuality) {
-        console.log(`[Refiner] Target quality reached at pass ${pass + 1}`);
         break;
       }
 

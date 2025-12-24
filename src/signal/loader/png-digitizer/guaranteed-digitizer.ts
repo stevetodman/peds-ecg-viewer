@@ -420,16 +420,8 @@ export class GuaranteedDigitizer {
    * Get the best result from all tiers
    */
   private getBestResult(): DigitizerResult | null {
-    // Find the tier result with highest confidence
-    const bestTier = this.tierResults
-      .filter(r => r.success)
-      .sort((a, b) => b.confidence - a.confidence)[0];
-
     // This is a simplified version - in production, we'd cache the actual results
-    // For now, just log the best tier info
-    if (bestTier) {
-      console.log(`[Guaranteed] Best tier: ${bestTier.tier} with ${(bestTier.confidence * 100).toFixed(0)}% confidence`);
-    }
+    // and return the best tier based on confidence
     return null;
   }
 
