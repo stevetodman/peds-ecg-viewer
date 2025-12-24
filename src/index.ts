@@ -160,6 +160,27 @@ export {
 } from './signal';
 
 // ============================================================================
+// Interpretation Engine
+// ============================================================================
+
+export {
+  interpretECG,
+  type InterpretationInput,
+  type InterpretationOptions,
+} from './interpretation';
+
+// Re-export individual analyzers for advanced usage
+export {
+  analyzeRate,
+  analyzeAxis,
+  analyzeIntervals,
+  analyzeHypertrophy,
+  analyzeRepolarization,
+  combineFindings,
+  type VoltageData,
+} from './interpretation';
+
+// ============================================================================
 // Renderer (Browser only)
 // ============================================================================
 
