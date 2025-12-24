@@ -1,7 +1,7 @@
 {
-  "name": "gemuse",
+  "name": "peds-ecg-viewer",
   "version": "0.1.0",
-  "description": "Pixel-perfect Muse EKG clone for pediatrics",
+  "description": "Pediatric ECG viewer with age-adjusted normal values",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -22,7 +22,6 @@
     "ecg",
     "ekg",
     "electrocardiogram",
-    "muse",
     "pediatric",
     "cardiology",
     "medical"

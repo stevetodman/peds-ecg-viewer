@@ -1,12 +1,12 @@
-# GEMUSE
+# Peds ECG Viewer
 
-**Pixel-Perfect Muse EKG Clone for Pediatrics**
+**Pediatric ECG Viewer with Age-Adjusted Interpretation**
 
-A TypeScript library for rendering ECG/EKG outputs that match the GE Muse format, with comprehensive pediatric-specific interpretation based on age-adjusted normal values.
+A TypeScript library for rendering and interpreting pediatric ECG/EKG outputs with comprehensive age-specific normal values from published peer-reviewed literature.
 
 ## Features
 
-- **Pixel-Perfect Rendering**: Matches GE Muse output format with forensic accuracy
+- **Standard ECG Rendering**: Clean, professional 12-lead ECG display
 - **Pediatric Focus**: 12 age groups from neonate to adolescent with published reference data
 - **Complete Measurements**: Heart rate, PR, QRS, QT/QTc, axes, and voltage criteria
 - **Age-Adjusted Interpretation**: Automatic flagging based on pediatric normal ranges
@@ -16,7 +16,7 @@ A TypeScript library for rendering ECG/EKG outputs that match the GE Muse format
 ## Installation
 
 ```bash
-npm install gemuse
+npm install peds-ecg-viewer
 ```
 
 ## Quick Start
@@ -27,7 +27,7 @@ import {
   getAgeGroup,
   classifyValue,
   ageToDays,
-} from 'gemuse';
+} from 'peds-ecg-viewer';
 
 // Get age group for a 6-month-old
 const ageDays = ageToDays(6, 'months');
@@ -65,7 +65,7 @@ npm run dev
 ## Project Structure
 
 ```
-gemuse/
+peds-ecg-viewer/
 ├── src/
 │   ├── types/          # TypeScript type definitions
 │   ├── config/         # Muse specification constants
