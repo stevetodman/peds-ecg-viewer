@@ -528,37 +528,50 @@
           <div class="muse-mismatch-status" id="mismatch-status">No Mismatch Detected</div>
         </div>
 
-        <!-- Measurements (MUSE-style) -->
+        <!-- Measurements (MUSE-style with header) -->
         <div class="muse-measurements-panel">
-          <div class="muse-meas-row">
-            <span class="meas-label">Ventricular, atrial rate:</span>
-            <input type="text" id="meas-vent-rate" value="130" readonly style="width:35px;">
-            <input type="text" id="meas-atrial-rate" value="130" readonly style="width:35px;">
-            <span class="meas-unit">bpm</span>
-          </div>
-          <div class="muse-meas-row">
-            <span class="meas-label">PR, QRS:</span>
-            <input type="text" id="meas-pr" value="110" readonly style="width:35px;">
-            <input type="text" id="meas-qrs" value="72" readonly style="width:35px;">
-            <span class="meas-unit">ms</span>
-          </div>
-          <div class="muse-meas-row">
-            <span class="meas-label">QT, QTcB:</span>
-            <input type="text" id="meas-qt" value="320" readonly style="width:35px;">
-            <input type="text" id="meas-qtc" value="410" readonly style="width:35px;">
-            <span class="meas-unit">ms</span>
-          </div>
-          <div class="muse-meas-row">
-            <span class="meas-label">PRT Axis:</span>
-            <input type="text" id="meas-p-axis" value="65" readonly style="width:30px;">
-            <input type="text" id="meas-qrs-axis" value="80" readonly style="width:30px;">
-            <input type="text" id="meas-t-axis" value="56" readonly style="width:30px;">
-            <span class="meas-unit">°</span>
-          </div>
-          <div class="muse-meas-row">
-            <span class="meas-label">RR interval:</span>
-            <input type="text" id="meas-rr" value="462" readonly style="width:50px;">
-            <span class="meas-unit">ms</span>
+          <div class="section-header">Measurements</div>
+          <div class="muse-meas-body">
+            <div class="muse-meas-row">
+              <span class="meas-label">Vent rate:</span>
+              <input type="text" id="meas-vent-rate" value="--" readonly style="width:40px;">
+              <span class="meas-unit">bpm</span>
+              <span class="meas-range" id="meas-vent-range"></span>
+            </div>
+            <div class="muse-meas-row">
+              <span class="meas-label">PR int:</span>
+              <input type="text" id="meas-pr" value="--" readonly style="width:40px;">
+              <span class="meas-unit">ms</span>
+              <span class="meas-range" id="meas-pr-range"></span>
+            </div>
+            <div class="muse-meas-row">
+              <span class="meas-label">QRS dur:</span>
+              <input type="text" id="meas-qrs" value="--" readonly style="width:40px;">
+              <span class="meas-unit">ms</span>
+              <span class="meas-range" id="meas-qrs-range"></span>
+            </div>
+            <div class="muse-meas-row">
+              <span class="meas-label">QT/QTc:</span>
+              <input type="text" id="meas-qt" value="--" readonly style="width:35px;">
+              <span class="meas-unit">/</span>
+              <input type="text" id="meas-qtc" value="--" readonly style="width:35px;">
+              <span class="meas-unit">ms</span>
+              <span class="meas-range" id="meas-qtc-range"></span>
+            </div>
+            <div class="muse-meas-row">
+              <span class="meas-label">P-R-T axes:</span>
+              <input type="text" id="meas-p-axis" value="--" readonly style="width:28px;">
+              <input type="text" id="meas-qrs-axis" value="--" readonly style="width:28px;">
+              <input type="text" id="meas-t-axis" value="--" readonly style="width:28px;">
+              <span class="meas-unit">°</span>
+            </div>
+            <div class="muse-meas-row">
+              <span class="meas-label">RV5/SV1:</span>
+              <input type="text" id="meas-rv5" value="--" readonly style="width:35px;">
+              <span class="meas-unit">/</span>
+              <input type="text" id="meas-sv1" value="--" readonly style="width:35px;">
+              <span class="meas-unit">mV</span>
+            </div>
           </div>
         </div>
 
@@ -1381,7 +1394,7 @@
     const jsPDF = window.jspdf.jsPDF;
     import { calculateECGMeasurements } from './src/signal/analysis/ecg-measurements.ts';
     import { AGE_GROUPS, getAgeGroup, ageToDays } from './src/data/ageGroups.ts';
-    import { getNormalsForAge, getClinicalNotes } from './src/data/pediatricNormals.ts';
+    import { getNormalsForAge, getClinicalNotes, classifyValue } from './src/data/pediatricNormals.ts';
 
     // ECG paper colors - Classic pink ECG paper
     const ECG_COLORS = {
@@ -1742,17 +1755,51 @@
       document.getElementById('status-id').textContent = patient.mrn || '---';
       document.getElementById('status-acquired').textContent = patient.testDateTime || new Date().toLocaleString();
 
-      // Update measurements (new MUSE-style fields)
-      document.getElementById('meas-vent-rate').value = measurements.hr || '---';
-      document.getElementById('meas-atrial-rate').value = measurements.hr || '---'; // Same as vent for sinus
-      document.getElementById('meas-pr').value = measurements.pr || '---';
-      document.getElementById('meas-qrs').value = measurements.qrs || '---';
-      document.getElementById('meas-qt').value = measurements.qt || '---';
-      document.getElementById('meas-qtc').value = measurements.qtc || '---';
-      document.getElementById('meas-p-axis').value = measurements.pAxis || '---';
-      document.getElementById('meas-qrs-axis').value = measurements.qrsAxis || '---';
-      document.getElementById('meas-t-axis').value = measurements.tAxis || '---';
-      document.getElementById('meas-rr').value = measurements.rr || Math.round(60000 / (measurements.hr || 75));
+      // Update measurements with MUSE-style color coding
+      const normals = currentPediatricContext?.normals;
+
+      // Helper to set value with color coding
+      const setMeasurement = (id, value, normalRange, rangeId) => {
+        const input = document.getElementById(id);
+        if (!input) return;
+
+        const displayValue = value != null ? Math.round(value) : '--';
+        input.value = displayValue;
+
+        // Apply color coding based on classification
+        input.classList.remove('meas-normal', 'meas-borderline', 'meas-abnormal');
+        if (value != null && normalRange) {
+          const classification = classifyValue(value, normalRange);
+          if (classification === 'low' || classification === 'high') {
+            input.classList.add('meas-abnormal');
+          } else if (classification === 'borderline_low' || classification === 'borderline_high') {
+            input.classList.add('meas-borderline');
+          } else {
+            input.classList.add('meas-normal');
+          }
+        }
+
+        // Show range if element exists
+        if (rangeId && normalRange) {
+          const rangeEl = document.getElementById(rangeId);
+          if (rangeEl) rangeEl.textContent = `(${normalRange.p2}-${normalRange.p98})`;
+        }
+      };
+
+      setMeasurement('meas-vent-rate', measurements.hr, normals?.heartRate, 'meas-vent-range');
+      setMeasurement('meas-pr', measurements.pr, normals?.prInterval, 'meas-pr-range');
+      setMeasurement('meas-qrs', measurements.qrs, normals?.qrsDuration, 'meas-qrs-range');
+      setMeasurement('meas-qt', measurements.qt, null, null);
+      setMeasurement('meas-qtc', measurements.qtc, normals?.qtcBazett, 'meas-qtc-range');
+      setMeasurement('meas-p-axis', measurements.pAxis, null, null);
+      setMeasurement('meas-qrs-axis', measurements.qrsAxis, normals?.qrsAxis, null);
+      setMeasurement('meas-t-axis', measurements.tAxis, null, null);
+
+      // RV5/SV1 voltages (for LVH/RVH criteria)
+      const rv5El = document.getElementById('meas-rv5');
+      const sv1El = document.getElementById('meas-sv1');
+      if (rv5El) rv5El.value = measurements.rv5 ? (measurements.rv5 / 1000).toFixed(1) : '--';
+      if (sv1El) sv1El.value = measurements.sv1 ? (measurements.sv1 / 1000).toFixed(1) : '--';
 
       // Update interpretation panel (above ECG)
       const interpContainer = document.getElementById('ecg-interpretation-text');
