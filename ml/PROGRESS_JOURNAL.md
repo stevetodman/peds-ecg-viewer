@@ -2,7 +2,7 @@
 
 > Auto-updated document tracking our ML development process, decisions, and results.
 
-**Last Updated:** 2025-12-25 14:00 UTC
+**Last Updated:** 2025-12-25 15:00 UTC
 
 ---
 
@@ -223,13 +223,15 @@ Lead Mask (12-dim) → Embedding → Lead Embedding (8-dim)
 
 ## Current Best Results (Test Set)
 
-| Condition | Test AUROC | Threshold | Sens | Spec | NPV | Status |
-|-----------|------------|-----------|------|------|-----|--------|
-| **Cardiomyopathy** | **0.902** | 0.035 | 82% | 81% | 99.7% | ✅ Screening |
-| **Kawasaki** | **0.856** | 0.127 | 74% | 77% | 99.4% | ✅ Screening |
-| **CHD** | **0.848** | 0.484 | 77% | 77% | 94% | ✅ Balanced |
-| ~~Myocarditis~~ | 0.632 | - | - | - | - | ❌ Deprecated |
+| Condition | Test AUROC | 95% CI | Threshold | Sens | Spec | NPV |
+|-----------|------------|--------|-----------|------|------|-----|
+| **Cardiomyopathy** | **0.902** | 0.849-0.949 | 0.035 | 82% | 81% | 99.7% |
+| **Kawasaki** | **0.856** | 0.813-0.893 | 0.127 | 74% | 77% | 99.4% |
+| **CHD** | **0.848** | 0.827-0.867 | 0.484 | 77% | 77% | 94% |
+| ~~Myocarditis~~ | 0.632 | - | - | - | - | - |
 | **3-class Mean** | **0.869** | - | - | - | - | - |
+
+*95% CI computed via 1000 bootstrap resamples of test set (n=2809)*
 
 **Clinical Use:** High NPV (>99%) for rare conditions means negative predictions are reliable for ruling out disease. Low PPV for rare conditions (5%) means positive predictions require confirmation.
 
@@ -264,6 +266,8 @@ ml/
 │   ├── gradcam.py               # Grad-CAM for ECG visualization
 │   └── *.png                    # Example visualizations
 ├── serve.py                     # Flask API for inference (port 5050)
+├── evaluation/
+│   └── bootstrap_ci.py          # Bootstrap 95% CI for AUROC
 └── training/
     ├── train.py                 # Binary training script
     ├── train_age_aware.py       # Age-aware training script
@@ -287,8 +291,16 @@ ml/
 8. [x] Clinical threshold optimization (Youden's J)
 9. [x] Grad-CAM interpretability (`ml/interpretability/gradcam.py`)
 10. [x] Subgroup analysis - neonates underperform (0.61), 9-lead slightly worse (0.79)
-11. [ ] External validation on PTB-XL or similar
+11. [x] Bootstrap validation with 95% CI (`ml/evaluation/bootstrap_ci.py`)
 12. [x] Integrate ML predictions into GEMUSE viewer (`ml/serve.py`, `demo.html`)
+
+---
+
+## Limitations
+
+- **No external validation**: ZZU-pECG is the only public pediatric ECG dataset with CHD/Kawasaki/Cardiomyopathy labels. CHDdECG (93k ECGs) exists but requires data access agreement.
+- **Neonatal blind spot**: Model underperforms on neonates (<28 days, AUROC 0.61)
+- **9-lead degradation**: Missing V2/V4/V6 reduces AUROC from 0.87 to 0.79
 
 ---
 
