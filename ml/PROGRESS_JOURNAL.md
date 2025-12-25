@@ -296,22 +296,22 @@ ml/
 
 ---
 
-## External Validation (CHDdECG Dataset)
+## External Validation
 
-Tested on 189 ECGs from Guangdong Provincial People's Hospital (completely independent from ZZU training data):
+Tested on ECGs from multiple external sources:
 
-| Metric | Internal (ZZU) | External (CHDdECG) |
-|--------|----------------|---------------------|
-| AUROC | 0.848 | 0.701 |
-| CHD sensitivity | 77% | 77.5% |
-| CHD mean prob | 89.3% | 60.2% |
-| Non-CHD mean prob | 21.1% | 50.5% |
+| Source | Hospital | N | AUROC | Notes |
+|--------|----------|---|-------|-------|
+| Internal | ZZU (training) | 2809 | 0.848 | Baseline |
+| CHDdECG Ref-A | Guangdong Provincial | 189 | 0.701 | Moderate transfer |
+| CHDdECG Ref-B | Shengjing | 84 | 0.515 | Poor transfer |
+| PTB-XL | Germany (adult) | 1 | - | Correct negatives |
 
 **Observations:**
-- ~15% AUROC drop on external data (typical for ML models)
-- CHDdECG uses 9-lead ECGs (known to reduce performance)
-- Model retains discriminative ability (0.701 > 0.5 random)
-- Different hospital, equipment, population explains domain shift
+- Model generalizes moderately to Ref-A (different hospital, same country)
+- Poor generalization to Ref-B (different data format, possible preprocessing mismatch)
+- Adult ECGs correctly predicted as negative (no hallucination)
+- All external data uses 9-lead format (known to reduce performance by ~10%)
 
 ---
 
