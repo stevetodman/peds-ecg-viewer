@@ -12,6 +12,7 @@ A TypeScript library for rendering and interpreting pediatric ECG/EKG outputs wi
 - **Age-Adjusted Interpretation**: Automatic flagging based on pediatric normal ranges
 - **Multiple Export Formats**: PNG (various DPIs) and PDF
 - **ZZU pECG Dataset**: Includes 24 sample pediatric ECGs with expert diagnoses
+- **ML Screening**: Deep learning model for CHD, Kawasaki, and Cardiomyopathy detection
 
 ## Installation
 
@@ -96,6 +97,25 @@ npm run typecheck
 # Build
 npm run build
 ```
+
+## ML Screening
+
+The viewer integrates a deep learning model for pediatric cardiac screening:
+
+| Condition | AUROC | 95% CI |
+|-----------|-------|--------|
+| CHD | 0.848 | 0.827-0.867 |
+| Kawasaki | 0.856 | 0.813-0.893 |
+| Cardiomyopathy | 0.902 | 0.849-0.949 |
+
+### Start ML Server
+
+```bash
+python -m ml.serve
+# API runs on http://localhost:5050
+```
+
+See [ml/README.md](ml/README.md) for API documentation.
 
 ## Dataset Attribution
 
