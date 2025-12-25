@@ -48,3 +48,11 @@ data/zzu-pecg/
 
 # VS Code extension test artifacts
 xai-vscode-extension/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
