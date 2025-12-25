@@ -20,6 +20,16 @@ export type {
   GuaranteedResult,
 } from './guaranteed-digitizer';
 
+// Robust Digitizer (retry with cross-lead validation)
+export {
+  RobustECGDigitizer,
+  robustDigitizePNG,
+} from './robust-digitizer';
+export type {
+  RobustDigitizerConfig,
+  RobustDigitizerResult,
+} from './robust-digitizer';
+
 // Human-Verified Digitizer (100% accuracy guaranteed)
 export {
   HumanVerifiedDigitizer,
@@ -108,6 +118,14 @@ export type {
   ValidationIssue,
   SuggestedCorrection,
 } from './signal/validator';
+export {
+  validateCrossLeadRelationships,
+  correctLeadFromRelationships,
+} from './signal/cross-lead-validator';
+export type {
+  LeadValidationResult,
+  CrossLeadValidationResult,
+} from './signal/cross-lead-validator';
 export { QRSCalibrationValidator, validateCalibrationWithQRS } from './signal/qrs-calibration';
 export type { QRSValidationResult } from './signal/qrs-calibration';
 
