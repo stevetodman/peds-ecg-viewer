@@ -2,7 +2,7 @@
 
 > Auto-updated document tracking our ML development process, decisions, and results.
 
-**Last Updated:** 2025-12-25 11:30 UTC
+**Last Updated:** 2025-12-25 14:00 UTC
 
 ---
 
@@ -261,8 +261,9 @@ ml/
 │   ├── rule_baseline.py         # Rule-based classifier
 │   └── baseline_results/        # Baseline outputs
 ├── interpretability/
-│   ├── gradcam.py               # Grad-CAM for ECG visualization [NEW]
+│   ├── gradcam.py               # Grad-CAM for ECG visualization
 │   └── *.png                    # Example visualizations
+├── serve.py                     # Flask API for inference (port 5050)
 └── training/
     ├── train.py                 # Binary training script
     ├── train_age_aware.py       # Age-aware training script
@@ -287,7 +288,7 @@ ml/
 9. [x] Grad-CAM interpretability (`ml/interpretability/gradcam.py`)
 10. [x] Subgroup analysis - neonates underperform (0.61), 9-lead slightly worse (0.79)
 11. [ ] External validation on PTB-XL or similar
-12. [ ] Integrate ML predictions into GEMUSE viewer
+12. [x] Integrate ML predictions into GEMUSE viewer (`ml/serve.py`, `demo.html`)
 
 ---
 

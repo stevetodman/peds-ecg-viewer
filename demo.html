@@ -586,6 +586,35 @@
             <button class="win-btn" onclick="showConfirmDialog()" style="font-size:10px;padding:2px 8px;">Confirm ECG...</button>
           </div>
         </div>
+
+        <!-- ML Screening Panel -->
+        <div class="ml-screening-panel">
+          <div class="section-header">ML Screening</div>
+          <div class="ml-status" id="ml-status">
+            <span class="ml-status-text">Not connected</span>
+          </div>
+          <div class="ml-predictions" id="ml-predictions">
+            <div class="ml-pred-row">
+              <span class="ml-pred-label">CHD:</span>
+              <span class="ml-pred-value" id="ml-chd">--</span>
+              <span class="ml-pred-bar"><span class="ml-pred-fill" id="ml-chd-bar"></span></span>
+            </div>
+            <div class="ml-pred-row">
+              <span class="ml-pred-label">Kawasaki:</span>
+              <span class="ml-pred-value" id="ml-kawasaki">--</span>
+              <span class="ml-pred-bar"><span class="ml-pred-fill" id="ml-kawasaki-bar"></span></span>
+            </div>
+            <div class="ml-pred-row">
+              <span class="ml-pred-label">Cardiomyopathy:</span>
+              <span class="ml-pred-value" id="ml-cardiomyopathy">--</span>
+              <span class="ml-pred-bar"><span class="ml-pred-fill" id="ml-cardiomyopathy-bar"></span></span>
+            </div>
+          </div>
+          <div class="ml-warnings" id="ml-warnings" style="display:none;"></div>
+          <div class="ml-disclaimer">
+            <small>AI screening only. Not a diagnosis. Clinical correlation required.</small>
+          </div>
+        </div>
       </div>
 
       <!-- Right Panel -->
@@ -1594,6 +1623,183 @@
     let isPanning = false;
     let panStart = { x: 0, y: 0 };
     let scrollStart = { x: 0, y: 0 };
+
+    // ML Service Configuration
+    const ML_API_URL = 'http://localhost:5050';
+    let mlServiceConnected = false;
+
+    /**
+     * Check ML service health and update status
+     */
+    async function checkMLService() {
+      const statusEl = document.getElementById('ml-status');
+      try {
+        const response = await fetch(`${ML_API_URL}/health`, {
+          method: 'GET',
+          signal: AbortSignal.timeout(3000)
+        });
+        if (response.ok) {
+          const data = await response.json();
+          mlServiceConnected = data.model_loaded;
+          statusEl.className = 'ml-status connected';
+          statusEl.innerHTML = '<span class="ml-status-text">✓ ML model ready</span>';
+        } else {
+          throw new Error('Service not healthy');
+        }
+      } catch (e) {
+        mlServiceConnected = false;
+        statusEl.className = 'ml-status disconnected';
+        statusEl.innerHTML = '<span class="ml-status-text">✗ ML service offline</span>';
+      }
+    }
+
+    /**
+     * Get ML predictions for current ECG
+     */
+    async function getMLPredictions(signal, patientAge) {
+      if (!mlServiceConnected) {
+        await checkMLService();
+        if (!mlServiceConnected) return null;
+      }
+
+      const statusEl = document.getElementById('ml-status');
+      statusEl.className = 'ml-status loading';
+      statusEl.innerHTML = '<span class="ml-status-text">⟳ Analyzing...</span>';
+
+      try {
+        // Prepare signal data (12 leads x N samples)
+        const leadOrder = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6'];
+        const signalData = leadOrder.map(lead => {
+          const samples = signal.leads[lead] || signal.leads[lead.toLowerCase()];
+          return samples ? Array.from(samples) : new Array(signal.leads.II?.length || 5000).fill(0);
+        });
+
+        // Determine lead mask (which leads are present)
+        const leadMask = leadOrder.map(lead => {
+          const samples = signal.leads[lead] || signal.leads[lead.toLowerCase()];
+          return samples ? 1 : 0;
+        });
+
+        const response = await fetch(`${ML_API_URL}/predict`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            signal: signalData,
+            sample_rate: signal.sampleRate || 500,
+            age_days: patientAge || 365 * 5,
+            lead_mask: leadMask
+          }),
+          signal: AbortSignal.timeout(30000)
+        });
+
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
+
+        const result = await response.json();
+        statusEl.className = 'ml-status connected';
+        statusEl.innerHTML = '<span class="ml-status-text">✓ Analysis complete</span>';
+        return result;
+      } catch (e) {
+        console.error('ML prediction error:', e);
+        statusEl.className = 'ml-status disconnected';
+        statusEl.innerHTML = `<span class="ml-status-text">✗ ${e.message}</span>`;
+        return null;
+      }
+    }
+
+    /**
+     * Update ML predictions UI panel
+     */
+    function updateMLPanel(predictions) {
+      const conditions = ['CHD', 'Kawasaki', 'Cardiomyopathy'];
+
+      if (!predictions || !predictions.predictions) {
+        // Reset to default state
+        conditions.forEach(cond => {
+          const valueEl = document.getElementById(`ml-${cond.toLowerCase()}`);
+          const barEl = document.getElementById(`ml-${cond.toLowerCase()}-bar`);
+          if (valueEl) {
+            valueEl.textContent = '--';
+            valueEl.className = 'ml-pred-value';
+          }
+          if (barEl) {
+            barEl.style.width = '0%';
+            barEl.className = 'ml-pred-fill';
+          }
+        });
+        document.getElementById('ml-warnings').style.display = 'none';
+        return;
+      }
+
+      // Update predictions
+      predictions.predictions.forEach(pred => {
+        const condLower = pred.condition.toLowerCase();
+        const valueEl = document.getElementById(`ml-${condLower}`);
+        const barEl = document.getElementById(`ml-${condLower}-bar`);
+
+        if (valueEl && barEl) {
+          const pct = Math.round(pred.probability * 100);
+          valueEl.textContent = `${pct}%`;
+          valueEl.className = pred.positive ? 'ml-pred-value positive' : 'ml-pred-value negative';
+
+          barEl.style.width = `${pct}%`;
+          if (pct >= 50) {
+            barEl.className = 'ml-pred-fill high';
+          } else if (pct >= 20) {
+            barEl.className = 'ml-pred-fill medium';
+          } else {
+            barEl.className = 'ml-pred-fill low';
+          }
+        }
+      });
+
+      // Update warnings
+      const warningsEl = document.getElementById('ml-warnings');
+      if (predictions.warnings && predictions.warnings.length > 0) {
+        warningsEl.innerHTML = predictions.warnings.map(w =>
+          `<div class="warning-item">⚠ ${w.message}</div>`
+        ).join('');
+        warningsEl.style.display = 'block';
+      } else {
+        warningsEl.style.display = 'none';
+      }
+    }
+
+    /**
+     * Trigger ML analysis for current ECG
+     */
+    async function analyzeWithML() {
+      if (!currentSignal) {
+        updateMLPanel(null);
+        return;
+      }
+
+      // Get patient age in days (from ageDays, or parse from age string, or default to 5 years)
+      let patientAge = currentPatient?.ageDays;
+      if (!patientAge && currentPatient?.age) {
+        // Try to parse age string like "5 yr" or "3 mo"
+        const match = currentPatient.age.match(/([\d.]+)\s*(yr|year|mo|month|day|d)/i);
+        if (match) {
+          const val = parseFloat(match[1]);
+          const unit = match[2].toLowerCase();
+          if (unit.startsWith('yr') || unit.startsWith('year')) {
+            patientAge = Math.round(val * 365);
+          } else if (unit.startsWith('mo')) {
+            patientAge = Math.round(val * 30);
+          } else {
+            patientAge = Math.round(val);
+          }
+        }
+      }
+      patientAge = patientAge || 365 * 5; // Default 5 years
+
+      const predictions = await getMLPredictions(currentSignal, patientAge);
+      updateMLPanel(predictions);
+    }
+
+    // Check ML service on page load
+    setTimeout(checkMLService, 1000);
 
     /**
      * Draw measurement annotations on ECG (PR, QRS, QT intervals)
@@ -2802,6 +3008,9 @@
         resetConfirmationUI(ecgId);
         showECGViewer();
         window.renderECG();
+
+        // Run ML analysis
+        analyzeWithML();
 
         console.log(`Loaded ${formatName}:`, {
           patient: result.patient,
@@ -5254,6 +5463,7 @@ LocalStorage: ${typeof localStorage !== 'undefined' ? 'Available' : 'Not availab
 
         // Set patient info
         const p = ecgData.patient;
+        const ageDays = parseAgeToDays(p.age);
         currentPatient = {
           patientId: p.mrn || ecgId,
           mrn: p.mrn || ecgId,
@@ -5261,6 +5471,7 @@ LocalStorage: ${typeof localStorage !== 'undefined' ? 'Available' : 'Not availab
           lastName: 'PATIENT',
           firstName: p.mrn || ecgId,
           age: p.age || `${parseAgeToYears(p.age)} Years`,
+          ageDays: ageDays,  // Age in days for ML
           ageUnits: getAgeUnits(p.age),
           sex: p.sex || 'U',
           gender: p.sex || 'U',
@@ -5294,6 +5505,9 @@ LocalStorage: ${typeof localStorage !== 'undefined' ? 'Available' : 'Not availab
 
         showECGViewer();
         window.renderECG();
+
+        // Run ML analysis
+        analyzeWithML();
 
         statusBar.textContent = `Loaded: ${filename} (${Object.keys(leads).length} leads, ${currentSignal.sampleRate}Hz)`;
 

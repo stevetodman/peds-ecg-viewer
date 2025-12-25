@@ -1558,3 +1558,125 @@ html, body {
     display: none !important;
   }
 }
+
+/* ========== ML SCREENING PANEL ========== */
+.ml-screening-panel {
+  margin-top: 10px;
+  padding: 8px;
+  background: #f0f8ff;
+  border: 1px solid #7F9DB9;
+  border-radius: 2px;
+}
+
+.ml-screening-panel .section-header {
+  background: linear-gradient(180deg, #4a6fa5 0%, #2d4a6f 100%);
+  color: white;
+  padding: 3px 6px;
+  font-weight: bold;
+  margin: -8px -8px 8px -8px;
+  font-size: 10px;
+}
+
+.ml-status {
+  font-size: 10px;
+  padding: 4px;
+  margin-bottom: 6px;
+  border-radius: 2px;
+}
+
+.ml-status.connected {
+  background: #d4edda;
+  color: #155724;
+}
+
+.ml-status.disconnected {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.ml-status.loading {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.ml-predictions {
+  font-size: 10px;
+}
+
+.ml-pred-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+  gap: 4px;
+}
+
+.ml-pred-label {
+  width: 80px;
+  font-weight: 500;
+}
+
+.ml-pred-value {
+  width: 35px;
+  text-align: right;
+  font-family: monospace;
+}
+
+.ml-pred-value.positive {
+  color: #c00;
+  font-weight: bold;
+}
+
+.ml-pred-value.negative {
+  color: #080;
+}
+
+.ml-pred-bar {
+  flex: 1;
+  height: 8px;
+  background: #e0e0e0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.ml-pred-fill {
+  height: 100%;
+  background: #4a6fa5;
+  transition: width 0.3s ease;
+  border-radius: 2px;
+}
+
+.ml-pred-fill.high {
+  background: #c00;
+}
+
+.ml-pred-fill.medium {
+  background: #f0ad4e;
+}
+
+.ml-pred-fill.low {
+  background: #5cb85c;
+}
+
+.ml-warnings {
+  margin-top: 6px;
+  padding: 4px;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 2px;
+  font-size: 9px;
+  color: #856404;
+}
+
+.ml-warnings .warning-item {
+  margin-bottom: 2px;
+}
+
+.ml-disclaimer {
+  margin-top: 6px;
+  padding: 4px;
+  background: #e9ecef;
+  border-radius: 2px;
+  font-size: 9px;
+  color: #6c757d;
+  text-align: center;
+}
