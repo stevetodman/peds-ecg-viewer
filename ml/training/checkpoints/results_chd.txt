@@ -1,0 +1,7 @@
+Task: chd
+Best Epoch: 10
+Val AUROC: 0.8547
+Test loss: 0.8369
+Test auroc: 0.8549
+Test auprc: 0.6259
+Test sens@90spec: 0.6315

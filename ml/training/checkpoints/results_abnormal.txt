@@ -1,0 +1,7 @@
+Task: abnormal
+Best Epoch: 15
+Val AUROC: 0.8453
+Test loss: 0.2237
+Test auroc: 0.8200
+Test auprc: 0.9562
+Test sens@90spec: 0.5842

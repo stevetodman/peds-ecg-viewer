@@ -1,0 +1,31 @@
+# Core ML
+torch>=2.0
+pytorch-lightning>=2.0
+torchvision>=0.15
+
+# ECG Processing
+wfdb>=4.0
+neurokit2>=0.2
+biosppy>=2.2
+
+# Data Science
+scikit-learn>=1.3
+pandas>=2.0
+numpy>=1.24
+
+# Label Noise
+cleanlab>=2.5
+
+# Visualization
+matplotlib>=3.7
+seaborn>=0.12
+
+# Utilities
+tqdm>=4.65
+pyyaml>=6.0
+
+# Optional: Experiment Tracking
+# wandb>=0.15
+
+# Optional: Config Management
+# hydra-core>=1.3
