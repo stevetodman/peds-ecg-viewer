@@ -254,16 +254,24 @@ function fillMissingLeads(panels: PanelAnalysis[], format: '12-lead' | '15-lead'
 function recalculateGridPositions(panels: PanelAnalysis[]): PanelAnalysis[] {
   if (panels.length < 4) return panels;
 
+  // Filter out rhythm strips for threshold calculation (they're much wider)
+  const regularPanels = panels.filter(p => !p.isRhythmStrip);
+  // Also filter out panels that are > 2x the median width (likely rhythm strips not flagged)
+  const widths = regularPanels.map(p => p.bounds.width).sort((a, b) => a - b);
+  const medianWidth = widths[Math.floor(widths.length / 2)] || 100;
+  const nonRhythmPanels = regularPanels.filter(p => p.bounds.width < medianWidth * 2);
+  const panelsForThreshold = nonRhythmPanels.length > 0 ? nonRhythmPanels : regularPanels;
+
   // Get unique Y centers and X centers
   const yCenters = panels.map(p => p.bounds.y + p.bounds.height / 2);
   const xCenters = panels.map(p => p.bounds.x + p.bounds.width / 2);
 
   // Cluster Y centers into rows (using simple threshold-based clustering)
-  const rowThreshold = Math.max(...panels.map(p => p.bounds.height)) * 0.5;
+  const rowThreshold = Math.max(...panelsForThreshold.map(p => p.bounds.height)) * 0.5;
   const uniqueRows = clusterValues(yCenters, rowThreshold);
 
-  // Cluster X centers into columns
-  const colThreshold = Math.max(...panels.map(p => p.bounds.width)) * 0.5;
+  // Cluster X centers into columns - use regular panel widths, not rhythm strips
+  const colThreshold = Math.max(...panelsForThreshold.map(p => p.bounds.width)) * 0.5;
   const uniqueCols = clusterValues(xCenters, colThreshold);
 
   // Assign row/col to each panel based on which cluster it falls into
