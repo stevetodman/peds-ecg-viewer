@@ -24,6 +24,16 @@ export interface AIProvider {
 /**
  * Abstract base class for AI providers
  */
+// Cache for canvas module (Node.js)
+let canvasModule: any = null;
+async function getCanvasModule() {
+  if (canvasModule) return canvasModule;
+  if (typeof document === 'undefined') {
+    canvasModule = await import('canvas');
+  }
+  return canvasModule;
+}
+
 export abstract class BaseAIProvider implements AIProvider {
   abstract name: string;
   protected apiKey: string;
@@ -183,74 +193,71 @@ export abstract class BaseAIProvider implements AIProvider {
   /**
    * Resize ImageData to new dimensions
    */
-  private resizeImageData(imageData: ImageData, newWidth: number, newHeight: number): Promise<ImageData> {
-    return new Promise((resolve, reject) => {
-      try {
-        // Create source canvas with original image
-        const srcCanvas = this.createCanvas(imageData.width, imageData.height);
-        const srcCtx = srcCanvas.getContext('2d')!;
+  private async resizeImageData(imageData: ImageData, newWidth: number, newHeight: number): Promise<ImageData> {
+    try {
+      // Create source canvas with original image
+      const srcCanvas = await this.createCanvasAsync(imageData.width, imageData.height);
+      const srcCtx = srcCanvas.getContext('2d')!;
 
-        if (typeof document === 'undefined') {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const { createImageData } = require('canvas');
-          const nodeImageData = createImageData(
-            new Uint8ClampedArray(imageData.data),
-            imageData.width,
-            imageData.height
-          );
-          srcCtx.putImageData(nodeImageData, 0, 0);
-        } else {
-          srcCtx.putImageData(imageData, 0, 0);
-        }
-
-        // Create destination canvas and draw scaled
-        const dstCanvas = this.createCanvas(newWidth, newHeight);
-        const dstCtx = dstCanvas.getContext('2d')!;
-        dstCtx.drawImage(srcCanvas, 0, 0, newWidth, newHeight);
-
-        // Get the resized image data
-        const resizedData = dstCtx.getImageData(0, 0, newWidth, newHeight);
-        resolve(resizedData);
-      } catch (error) {
-        reject(error);
+      if (typeof document === 'undefined') {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { createImageData } = require('canvas');
+        const nodeImageData = createImageData(
+          new Uint8ClampedArray(imageData.data),
+          imageData.width,
+          imageData.height
+        );
+        srcCtx.putImageData(nodeImageData, 0, 0);
+      } else {
+        srcCtx.putImageData(imageData, 0, 0);
       }
-    });
+
+      // Create destination canvas and draw scaled
+      const dstCanvas = await this.createCanvasAsync(newWidth, newHeight);
+      const dstCtx = dstCanvas.getContext('2d')!;
+      dstCtx.drawImage(srcCanvas, 0, 0, newWidth, newHeight);
+
+      // Get the resized image data
+      const resizedData = dstCtx.getImageData(0, 0, newWidth, newHeight);
+      return resizedData;
+    } catch (error) {
+      throw error;
+    }
   }
 
   /**
    * Convert ImageData to base64 (raw, no resizing)
    */
-  private imageDataToBase64Raw(
+  private async imageDataToBase64Raw(
     imageData: ImageData,
     mimeType: string = 'image/png',
     quality?: number
   ): Promise<string> {
-    return new Promise((resolve, reject) => {
-      try {
-        const canvas = this.createCanvas(imageData.width, imageData.height);
-        const ctx = canvas.getContext('2d')!;
+    try {
+      const canvas = await this.createCanvasAsync(imageData.width, imageData.height);
+      const ctx = canvas.getContext('2d')!;
 
-        // In Node.js with node-canvas, we need to create a proper ImageData
-        if (typeof document === 'undefined') {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const { createImageData } = require('canvas');
-          const nodeImageData = createImageData(
-            new Uint8ClampedArray(imageData.data),
-            imageData.width,
-            imageData.height
-          );
-          ctx.putImageData(nodeImageData, 0, 0);
-        } else {
-          ctx.putImageData(imageData, 0, 0);
-        }
+      // In Node.js with node-canvas, we need to create a proper ImageData
+      if (typeof document === 'undefined') {
+        const canvasMod = await getCanvasModule();
+        const nodeImageData = canvasMod.createImageData(
+          new Uint8ClampedArray(imageData.data),
+          imageData.width,
+          imageData.height
+        );
+        ctx.putImageData(nodeImageData, 0, 0);
+      } else {
+        ctx.putImageData(imageData, 0, 0);
+      }
 
-        // Handle node-canvas's synchronous toBuffer vs browser's async toBlob
-        if (typeof document === 'undefined') {
-          // Node.js - use toBuffer
-          const buffer = (canvas as any).toBuffer(mimeType);
-          resolve(buffer.toString('base64'));
-        } else {
-          // Browser - use toBlob
+      // Handle node-canvas's synchronous toBuffer vs browser's async toBlob
+      if (typeof document === 'undefined') {
+        // Node.js - use toBuffer
+        const buffer = (canvas as any).toBuffer(mimeType);
+        return buffer.toString('base64');
+      } else {
+        // Browser - use toBlob
+        return new Promise((resolve, reject) => {
           canvas.toBlob((blob) => {
             if (blob) {
               this.blobToBase64(blob).then(resolve);
@@ -258,17 +265,17 @@ export abstract class BaseAIProvider implements AIProvider {
               reject(new Error('Failed to create blob from canvas'));
             }
           }, mimeType, quality);
-        }
-      } catch (error) {
-        reject(error);
+        });
       }
-    });
+    } catch (error) {
+      throw error;
+    }
   }
 
   /**
-   * Create canvas element
+   * Create canvas element (async for Node.js compatibility)
    */
-  private createCanvas(width: number, height: number): HTMLCanvasElement {
+  private async createCanvasAsync(width: number, height: number): Promise<HTMLCanvasElement> {
     if (typeof document !== 'undefined') {
       const canvas = document.createElement('canvas');
       canvas.width = width;
@@ -277,9 +284,8 @@ export abstract class BaseAIProvider implements AIProvider {
     }
 
     // Node.js fallback - use canvas package
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { createCanvas } = require('canvas');
-    return createCanvas(width, height);
+    const canvasMod = await getCanvasModule();
+    return canvasMod.createCanvas(width, height);
   }
 
   /**

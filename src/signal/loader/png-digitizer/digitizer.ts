@@ -14,6 +14,8 @@ import type {
   ProcessingStage,
   GridAnalysis,
   CalibrationAnalysis,
+  PanelAnalysis,
+  RawTrace,
 } from './types';
 import { createAIProvider, getEnvApiKey, getDefaultModel } from './ai';
 import type { AIProviderType } from './ai';
@@ -22,6 +24,9 @@ import { LocalGridDetector } from './cv/grid-detector';
 import { loadImage } from './cv/image-loader';
 import { SignalReconstructor } from './signal/reconstructor';
 import { QualityScorer } from './signal/quality-scorer';
+import { detectCalibrationPulse } from './cv/calibration-pulse-detector';
+import { detectBaseline } from './cv/baseline-detector';
+import type { LeadName } from '../../../types';
 
 /**
  * Image source type
@@ -161,19 +166,53 @@ export class ECGDigitizer {
         analysis.grid.largeBoxPx = analysis.grid.pxPerMm * 5;
       }
 
-      // Stage 4: Waveform extraction
+      // Stage 3.5: Calibration pulse detection
+      this.progress('calibration', 50, 'Detecting calibration...');
+      const calibrationPulse = detectCalibrationPulse(imageData);
+
+      if (calibrationPulse.found && calibrationPulse.confidence > 0.5) {
+        // Use detected calibration pulse to improve accuracy
+        const pxPerMv = calibrationPulse.pxPerMv;
+        const pxPerMm = pxPerMv / (analysis.calibration.gain || 10);
+
+        // Update grid and calibration with detected values
+        analysis.grid.pxPerMm = pxPerMm;
+        analysis.grid.smallBoxPx = pxPerMm;
+        analysis.grid.largeBoxPx = pxPerMm * 5;
+        analysis.calibration.confidence = Math.max(analysis.calibration.confidence, calibrationPulse.confidence);
+
+        stages.push({
+          name: 'calibration_detection',
+          status: 'success',
+          confidence: calibrationPulse.confidence,
+          durationMs: 0,
+          notes: `Calibration pulse detected: ${pxPerMv.toFixed(1)} px/mV`,
+        });
+      }
+
+      // Stage 4: Waveform extraction with robust retry logic
       this.progress('waveform_extraction', 60, 'Extracting waveforms...');
       const waveformStart = Date.now();
 
+      // Validate and fix panel bounds before tracing
+      const validatedPanels = this.validatePanelBounds(analysis.panels, imageData.width, imageData.height);
+
+      // Improve baseline detection for each panel using isoelectric analysis
+      const panelsWithImprovedBaseline = this.improveBaselineDetection(imageData, validatedPanels);
+
       // Parse waveform color from AI analysis if available
       const waveformColor = this.parseWaveformColor(analysis.grid.waveformColor);
-      const tracer = new WaveformTracer(imageData, { waveformColor });
-      const traces = tracer.traceAllPanels(analysis.panels);
+
+      // Extract with retry logic for failed panels
+      const rawTraces = this.robustTraceExtraction(imageData, panelsWithImprovedBaseline, waveformColor);
+
+      // Deduplicate leads (keep best confidence if AI detected same lead multiple times)
+      const traces = this.deduplicateTraces(rawTraces);
 
       stages.push({
         name: 'waveform_extraction',
         status: traces.length > 0 ? 'success' : 'failed',
-        confidence: analysis.panels.length > 0 ? traces.length / analysis.panels.length : 0,
+        confidence: validatedPanels.length > 0 ? traces.length / validatedPanels.length : 0,
         durationMs: Date.now() - waveformStart,
       });
 
@@ -268,6 +307,161 @@ export class ECGDigitizer {
     }
 
     return undefined;
+  }
+
+  /**
+   * Validate and fix panel bounds to ensure they're within image dimensions
+   */
+  private validatePanelBounds(panels: PanelAnalysis[], imageWidth: number, imageHeight: number): PanelAnalysis[] {
+    return panels.map(panel => {
+      const bounds = { ...panel.bounds };
+
+      // Clamp to image dimensions
+      bounds.x = Math.max(0, Math.min(bounds.x, imageWidth - 10));
+      bounds.y = Math.max(0, Math.min(bounds.y, imageHeight - 10));
+      bounds.width = Math.min(bounds.width, imageWidth - bounds.x);
+      bounds.height = Math.min(bounds.height, imageHeight - bounds.y);
+
+      // Ensure minimum size
+      bounds.width = Math.max(bounds.width, 20);
+      bounds.height = Math.max(bounds.height, 20);
+
+      return { ...panel, bounds };
+    });
+  }
+
+  /**
+   * Improve baseline detection for each panel using isoelectric segment analysis
+   */
+  private improveBaselineDetection(imageData: ImageData, panels: PanelAnalysis[]): PanelAnalysis[] {
+    return panels.map(panel => {
+      const baselineResult = detectBaseline(imageData, panel.bounds, panel.baselineY);
+
+      // Only update if the new baseline has higher confidence
+      if (baselineResult.confidence > 0.4) {
+        return {
+          ...panel,
+          baselineY: baselineResult.baselineY,
+        };
+      }
+
+      return panel;
+    });
+  }
+
+  /**
+   * Robust trace extraction with retry logic for failed panels
+   */
+  private robustTraceExtraction(
+    imageData: ImageData,
+    panels: PanelAnalysis[],
+    waveformColor?: { r: number; g: number; b: number }
+  ): RawTrace[] {
+    const traces: RawTrace[] = [];
+
+    // Try multiple darkness thresholds
+    const thresholds = [80, 60, 100, 40, 120];
+
+    for (const panel of panels) {
+      if (!panel.lead) continue;
+
+      let bestTrace: RawTrace | null = null;
+      let bestConfidence = 0;
+
+      // Try with default settings first
+      for (const threshold of thresholds) {
+        const tracer = new WaveformTracer(imageData, {
+          waveformColor,
+          darknessThreshold: threshold,
+        });
+
+        const trace = tracer.tracePanel(panel);
+
+        if (trace && trace.xPixels.length > 10) {
+          const avgConf = trace.confidence.reduce((a, b) => a + b, 0) / trace.confidence.length;
+
+          // Check if this is better than previous attempts
+          if (avgConf > bestConfidence) {
+            bestConfidence = avgConf;
+            bestTrace = trace;
+          }
+
+          // Good enough, stop trying
+          if (avgConf > 0.7) break;
+        }
+      }
+
+      // If still failed, try with expanded bounds
+      if (!bestTrace || bestConfidence < 0.5) {
+        const expandedPanel = this.expandPanelBounds(panel, imageData.width, imageData.height, 10);
+        const tracer = new WaveformTracer(imageData, {
+          waveformColor,
+          darknessThreshold: 80,
+        });
+
+        const trace = tracer.tracePanel(expandedPanel);
+        if (trace && trace.xPixels.length > 10) {
+          const avgConf = trace.confidence.reduce((a, b) => a + b, 0) / trace.confidence.length;
+          if (avgConf > bestConfidence) {
+            bestTrace = trace;
+          }
+        }
+      }
+
+      if (bestTrace) {
+        traces.push(bestTrace);
+      }
+    }
+
+    return traces;
+  }
+
+  /**
+   * Expand panel bounds by a margin (for retry attempts)
+   */
+  private expandPanelBounds(
+    panel: PanelAnalysis,
+    imageWidth: number,
+    imageHeight: number,
+    margin: number
+  ): PanelAnalysis {
+    return {
+      ...panel,
+      bounds: {
+        x: Math.max(0, panel.bounds.x - margin),
+        y: Math.max(0, panel.bounds.y - margin),
+        width: Math.min(panel.bounds.width + margin * 2, imageWidth - panel.bounds.x + margin),
+        height: Math.min(panel.bounds.height + margin * 2, imageHeight - panel.bounds.y + margin),
+      },
+    };
+  }
+
+  /**
+   * Deduplicate traces - keep only the best trace for each lead
+   */
+  private deduplicateTraces(traces: RawTrace[]): RawTrace[] {
+    const leadMap = new Map<LeadName, RawTrace>();
+
+    for (const trace of traces) {
+      const existing = leadMap.get(trace.lead);
+
+      if (!existing) {
+        leadMap.set(trace.lead, trace);
+      } else {
+        // Keep the one with more points and higher confidence
+        const existingConf = existing.confidence.reduce((a, b) => a + b, 0) / existing.confidence.length;
+        const newConf = trace.confidence.reduce((a, b) => a + b, 0) / trace.confidence.length;
+
+        const existingScore = existing.xPixels.length * existingConf;
+        const newScore = trace.xPixels.length * newConf;
+
+        if (newScore > existingScore) {
+          leadMap.set(trace.lead, trace);
+        }
+      }
+    }
+
+    return Array.from(leadMap.values());
   }
 
   /**
