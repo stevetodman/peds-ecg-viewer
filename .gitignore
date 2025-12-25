@@ -46,6 +46,14 @@ reference/muse_samples/*.jpg
 # Large data files (download separately)
 data/zzu-pecg/
 
+# External ECG test data (downloaded for validation)
+test_ecgs/*.dat
+test_ecgs/*.hea
+test_ecgs/CHDdECG/
+
+# Old model checkpoints (keep only best via git-lfs)
+ml/training/checkpoints/best_hybrid_20251225_085012.pt
+
 # VS Code extension test artifacts
 xai-vscode-extension/
 
