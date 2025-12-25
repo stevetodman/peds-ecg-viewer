@@ -91,7 +91,8 @@ async function test() {
     // Compare with original signal
     console.log('\n=== Correlation with Original ===\n');
     for (const leadName of ['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6']) {
-      const original = signalData[leadName];
+      // Handle case differences: original might be 'AVR' but we want 'aVR'
+      const original = signalData[leadName] || signalData[leadName.toUpperCase()];
       const digitized = result.signal.leads[leadName as keyof typeof result.signal.leads];
 
       if (original && digitized) {

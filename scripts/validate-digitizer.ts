@@ -41,8 +41,10 @@ async function validateDigitizer() {
   // Get signal data (handle both formats)
   const signalData = ecgData.signal.leads || ecgData.signal;
 
+  // Normalize lead names (handle both AVR and aVR formats)
+  const standardLeads = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6'];
   const leads = Object.keys(signalData).filter(k =>
-    ['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6'].includes(k)
+    standardLeads.includes(k) || standardLeads.includes(k.toUpperCase().replace('AVR', 'aVR').replace('AVL', 'aVL').replace('AVF', 'aVF'))
   );
 
   console.log(`   Sample rate: ${sampleRate} Hz`);
@@ -92,7 +94,9 @@ async function validateDigitizer() {
 
   for (const lead of leads) {
     const original = signalData[lead];
-    const digitized = result.signal.leads[lead as keyof typeof result.signal.leads];
+    // Handle case differences: original might be 'AVR' but digitized will be 'aVR'
+    const normalizedLead = lead.toUpperCase().replace('AVR', 'aVR').replace('AVL', 'aVL').replace('AVF', 'aVF');
+    const digitized = result.signal.leads[normalizedLead as keyof typeof result.signal.leads];
 
     if (!original || !digitized) {
       console.log(`   ${lead}: MISSING`);
@@ -114,7 +118,7 @@ async function validateDigitizer() {
     const rmse = calculateRMSE(alignedOrig, alignedDig);
 
     const status = correlation > 0.8 ? '✓' : correlation > 0.5 ? '~' : '✗';
-    console.log(`   ${lead.padEnd(4)}: r=${correlation.toFixed(3)} RMSE=${rmse.toFixed(3)} offset=${offset} ${status}`);
+    console.log(`   ${normalizedLead.padEnd(4)}: r=${correlation.toFixed(3)} RMSE=${rmse.toFixed(3)} offset=${offset} ${status}`);
     console.log(`         orig: ${origPortion.length} samples, dig: ${digitized.length} samples`);
 
     if (!isNaN(correlation)) {
@@ -218,7 +222,8 @@ function renderECGToImage(
   for (let row = 0; row < 3; row++) {
     for (let col = 0; col < 4; col++) {
       const leadName = layout[row][col];
-      const leadData = signal[leadName];
+      // Handle both 'aVR' and 'AVR' naming conventions
+      const leadData = signal[leadName] || signal[leadName.toUpperCase()];
 
       if (!leadData) continue;
 
