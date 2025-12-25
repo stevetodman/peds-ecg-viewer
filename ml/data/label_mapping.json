@@ -1,0 +1,39 @@
+{
+  "version": "1.0",
+  "created": "2024-12-25",
+  "description": "ICD-10 code mapping to 4 target conditions for multi-label classification",
+
+  "conditions": {
+    "chd": {
+      "name": "Congenital Heart Disease",
+      "description": "Any congenital heart defect (VSD, ASD, ToF, PDA, etc.)",
+      "icd10_prefixes": ["Q20", "Q21", "Q22", "Q23", "Q24", "Q25", "Q26"],
+      "expected_count": 2500
+    },
+    "myocarditis": {
+      "name": "Myocarditis",
+      "description": "Inflammation of heart muscle (acute, viral, fulminant)",
+      "icd10_prefixes": ["I40", "I41"],
+      "icd10_exact": ["I51.4"],
+      "expected_count": 400
+    },
+    "kawasaki": {
+      "name": "Kawasaki Disease",
+      "description": "Mucocutaneous lymph node syndrome with cardiac involvement",
+      "icd10_exact": ["M30.3"],
+      "expected_count": 200
+    },
+    "cardiomyopathy": {
+      "name": "Cardiomyopathy",
+      "description": "Primary heart muscle disease (dilated, hypertrophic, restrictive)",
+      "icd10_prefixes": ["I42"],
+      "expected_count": 150
+    }
+  },
+
+  "notes": {
+    "multi_label": "Samples can have multiple conditions (e.g., CHD + myocarditis)",
+    "normal_inference": "Normal = all condition labels are 0 (no explicit normal class)",
+    "excluded_codes": "Non-cardiac ICD-10 codes (J, K, R, etc.) are ignored"
+  }
+}

@@ -2,7 +2,7 @@
 
 > Auto-updated document tracking our ML development process, decisions, and results.
 
-**Last Updated:** 2025-12-24 19:45 UTC
+**Last Updated:** 2025-12-25 11:00 UTC
 
 ---
 
@@ -136,13 +136,82 @@ ECG Signal (12 leads × 5000 samples)
 
 ---
 
-## Current Best Results
+### Phase 6: Pivot to Multi-Label + Hybrid Model (In Progress)
+**Date:** 2025-12-25
 
-| Metric | Value | Target |
-|--------|-------|--------|
-| Abnormality AUROC (Age-Aware) | 0.8205 | 0.880+ |
-| CHD AUROC | 0.855 | - |
-| Gap to Boston | -0.11 | Close gap |
+**Key Insight:** After analyzing the benchmark paper (arXiv:2510.03780), we discovered they achieved 94.67% macro-F1 using **multi-label classification on 19 specific CVD categories** - fundamentally different from our binary "abnormal" approach. The binary task is inherently noisy because "abnormal" has no clear definition.
+
+**Decision:** Pivot to:
+1. **Multi-label classification** on 4 specific conditions with cleaner labels
+2. **Hybrid rule+neural model** combining GEMUSE features with deep learning
+3. **Focus on interpretability** for clinical trust
+
+**New Architecture: HybridFusionModel (8.9M params)**
+```
+ECG Signal (12 × 5000) → ResNet-1D Encoder → Neural Embedding (512-dim)
+Rule Features (30-dim) → MLP Encoder → Rule Embedding (32-dim)
+Age (normalized) → Embedding → Age Embedding (16-dim)
+Lead Mask (12-dim) → Embedding → Lead Embedding (8-dim)
+        ↓
+   Concatenate (568-dim)
+        ↓
+   Fusion MLP
+        ↓
+   4 condition probabilities (CHD, Myocarditis, Kawasaki, Cardiomyopathy)
+```
+
+**Files Created:**
+- `ml/data/label_mapping.json` - ICD-10 to condition mapping
+- `ml/data/dataset_multilabel.py` - Multi-label dataset with 4 conditions
+- `ml/data/augmentations_v2.py` - Enhanced augmentations with 9-lead masking
+- `ml/models/rule_features.py` - Rule feature extractor (30 features)
+- `ml/models/hybrid_model.py` - Hybrid fusion model
+- `ml/training/train_hybrid.py` - Training script
+
+**Label Distribution (Train/Val/Test):**
+| Condition | Train | Val | Test | Pos Weight |
+|-----------|-------|-----|------|------------|
+| CHD | 1,568 (18.3%) | 470 (16.6%) | 487 (17.3%) | 4.45 |
+| Myocarditis | 160 (1.9%) | 51 (1.8%) | 46 (1.6%) | 52.42 |
+| Kawasaki | 115 (1.3%) | 33 (1.2%) | 46 (1.6%) | 73.33 |
+| Cardiomyopathy | 95 (1.1%) | 42 (1.5%) | 34 (1.2%) | 88.98 |
+| Normal (all zeros) | 6,636 (77.6%) | 2,240 (79.1%) | 2,201 (78.4%) | - |
+
+**Initial Test (3 epochs, no rule features):**
+| Condition | Val AUROC |
+|-----------|-----------|
+| CHD | 0.786 |
+| Kawasaki | 0.717 |
+| Cardiomyopathy | 0.689 |
+| Myocarditis | 0.433 |
+| **Mean** | **0.656** |
+
+**Full Training Results (30 epochs, best at epoch 14):**
+| Condition | Val AUROC | Test AUROC | Test AUPRC |
+|-----------|-----------|------------|------------|
+| Cardiomyopathy | 0.857 | **0.902** | 0.213 |
+| Kawasaki | 0.929 | **0.856** | 0.143 |
+| CHD | 0.849 | **0.848** | 0.603 |
+| Myocarditis | 0.593 | 0.632 | 0.035 |
+| **Mean** | **0.807** | **0.809** | 0.249 |
+
+**Observation:** Model generalizes well (val ≈ test). Three conditions exceed 0.85 AUROC on test set. Myocarditis is unreliable (0.63 AUROC, near-random AUPRC) due to extreme class imbalance (160 train samples). **Decision: Deprecate myocarditis - would need 800-1500+ samples for reliable detection.**
+
+---
+
+## Current Best Results (Test Set)
+
+| Condition | Test AUROC | Threshold | Sens | Spec | NPV | Status |
+|-----------|------------|-----------|------|------|-----|--------|
+| **Cardiomyopathy** | **0.902** | 0.035 | 82% | 81% | 99.7% | ✅ Screening |
+| **Kawasaki** | **0.856** | 0.127 | 74% | 77% | 99.4% | ✅ Screening |
+| **CHD** | **0.848** | 0.484 | 77% | 77% | 94% | ✅ Balanced |
+| ~~Myocarditis~~ | 0.632 | - | - | - | - | ❌ Deprecated |
+| **3-class Mean** | **0.869** | - | - | - | - | - |
+
+**Clinical Use:** High NPV (>99%) for rare conditions means negative predictions are reliable for ruling out disease. Low PPV for rare conditions (5%) means positive predictions require confirmation.
+
+Checkpoint: `ml/training/checkpoints/best_hybrid_20251225_091556.pt`
 
 ---
 
@@ -150,25 +219,34 @@ ECG Signal (12 leads × 5000 samples)
 
 ```
 ml/
-├── spec.md                      # Project specification
+├── spec.md                      # Project specification (v3)
 ├── requirements.txt             # Python dependencies
 ├── PROGRESS_JOURNAL.md          # This file
 ├── data/
 │   ├── audit.py                 # Data audit script
-│   ├── dataset.py               # PyTorch dataset
-│   ├── augmentations.py         # Data augmentation
+│   ├── dataset.py               # Binary PyTorch dataset
+│   ├── dataset_multilabel.py    # Multi-label dataset (4 conditions) [NEW]
+│   ├── label_mapping.json       # ICD-10 code mapping [NEW]
+│   ├── augmentations.py         # Basic augmentation
+│   ├── augmentations_v2.py      # Enhanced augmentation + 9-lead masking [NEW]
 │   ├── pediatric_normals.py     # Age-adjusted normal values
 │   └── audit_results/           # Audit outputs
 ├── models/
 │   ├── resnet1d.py              # ResNet-1D architecture
-│   ├── resnet1d_age.py          # Age-aware ResNet-1D (26.7M params)
+│   ├── resnet1d_age.py          # Age-aware ResNet-1D
+│   ├── hybrid_model.py          # Hybrid rule+neural model [NEW]
+│   ├── rule_features.py         # Rule feature extractor (30 features) [NEW]
 │   ├── rule_baseline.py         # Rule-based classifier
 │   └── baseline_results/        # Baseline outputs
+├── interpretability/
+│   ├── gradcam.py               # Grad-CAM for ECG visualization [NEW]
+│   └── *.png                    # Example visualizations
 └── training/
-    ├── train.py                 # Training script
+    ├── train.py                 # Binary training script
     ├── train_age_aware.py       # Age-aware training script
+    ├── train_hybrid.py          # Hybrid model training
     └── checkpoints/
-        ├── best_age_aware_abnormal.pt  # Best model (AUROC 0.8205)
+        ├── best_hybrid_20251225_091556.pt  # Production model
         └── ...                  # Other checkpoints
 ```
 
@@ -178,9 +256,15 @@ ml/
 
 1. [x] Implement age-aware ResNet with auxiliary input
 2. [x] Train on abnormality detection
-3. [ ] Investigate why larger model didn't help (label noise? data quality?)
-4. [ ] Try multi-label classification instead of binary abnormal/normal
-5. [ ] Add interpretability (Grad-CAM) for clinical validation
+3. [x] Pivot to multi-label classification (4 specific conditions)
+4. [x] Build hybrid rule+neural model architecture
+5. [x] Full training (0.807 mean AUROC)
+6. [x] Run test set evaluation (0.869 mean AUROC on 3 conditions)
+7. [x] Deprecate myocarditis (insufficient data - needs 800+ more samples)
+8. [x] Clinical threshold optimization (Youden's J)
+9. [x] Grad-CAM interpretability (`ml/interpretability/gradcam.py`)
+10. [ ] Subgroup analysis (by age, lead config)
+11. [ ] External validation on PTB-XL or similar
 
 ---
 
