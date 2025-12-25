@@ -2,7 +2,7 @@
 
 > Auto-updated document tracking our ML development process, decisions, and results.
 
-**Last Updated:** 2025-12-25 15:00 UTC
+**Last Updated:** 2025-12-25 15:30 UTC
 
 ---
 
@@ -296,9 +296,28 @@ ml/
 
 ---
 
+## External Validation (CHDdECG Dataset)
+
+Tested on 189 ECGs from Guangdong Provincial People's Hospital (completely independent from ZZU training data):
+
+| Metric | Internal (ZZU) | External (CHDdECG) |
+|--------|----------------|---------------------|
+| AUROC | 0.848 | 0.701 |
+| CHD sensitivity | 77% | 77.5% |
+| CHD mean prob | 89.3% | 60.2% |
+| Non-CHD mean prob | 21.1% | 50.5% |
+
+**Observations:**
+- ~15% AUROC drop on external data (typical for ML models)
+- CHDdECG uses 9-lead ECGs (known to reduce performance)
+- Model retains discriminative ability (0.701 > 0.5 random)
+- Different hospital, equipment, population explains domain shift
+
+---
+
 ## Limitations
 
-- **No external validation**: ZZU-pECG is the only public pediatric ECG dataset with CHD/Kawasaki/Cardiomyopathy labels. CHDdECG (93k ECGs) exists but requires data access agreement.
+- **Domain shift on external data**: AUROC drops from 0.85 to 0.70 on CHDdECG (different hospital)
 - **Neonatal blind spot**: Model underperforms on neonates (<28 days, AUROC 0.61)
 - **9-lead degradation**: Missing V2/V4/V6 reduces AUROC from 0.87 to 0.79
 
