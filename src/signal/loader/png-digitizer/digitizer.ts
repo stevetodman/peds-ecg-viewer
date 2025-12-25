@@ -166,27 +166,64 @@ export class ECGDigitizer {
         analysis.grid.largeBoxPx = analysis.grid.pxPerMm * 5;
       }
 
-      // Stage 3.5: Calibration pulse detection
+      // Stage 3.5: Calibration pulse detection and validation
       this.progress('calibration', 50, 'Detecting calibration...');
       const calibrationPulse = detectCalibrationPulse(imageData);
 
+      // Calculate expected pxPerMm from panel dimensions
+      // Standard ECG panel shows 2.5 seconds at 25mm/s = 62.5mm
+      // Or 2.5 seconds at 50mm/s = 125mm
+      const avgPanelWidth = this.calculateAveragePanelWidth(analysis.panels);
+      const panelBasedPxPerMm25 = avgPanelWidth / 62.5; // Assuming 25mm/s
+      const panelBasedPxPerMm50 = avgPanelWidth / 125;  // Assuming 50mm/s
+
+      let useCalibrationPulse = false;
       if (calibrationPulse.found && calibrationPulse.confidence > 0.5) {
-        // Use detected calibration pulse to improve accuracy
         const pxPerMv = calibrationPulse.pxPerMv;
         const pxPerMm = pxPerMv / (analysis.calibration.gain || 10);
 
-        // Update grid and calibration with detected values
+        // Validate: the calibration-based pxPerMm should be close to panel-based estimate
+        // Allow up to 30% deviation (tighter validation)
+        const ratio25 = pxPerMm / panelBasedPxPerMm25;
+        const ratio50 = pxPerMm / panelBasedPxPerMm50;
+
+        if ((ratio25 > 0.7 && ratio25 < 1.4) || (ratio50 > 0.7 && ratio50 < 1.4)) {
+          // Calibration pulse agrees with panel dimensions
+          analysis.grid.pxPerMm = pxPerMm;
+          analysis.grid.smallBoxPx = pxPerMm;
+          analysis.grid.largeBoxPx = pxPerMm * 5;
+          analysis.calibration.confidence = Math.max(analysis.calibration.confidence, calibrationPulse.confidence);
+          useCalibrationPulse = true;
+
+          stages.push({
+            name: 'calibration_detection',
+            status: 'success',
+            confidence: calibrationPulse.confidence,
+            durationMs: 0,
+            notes: `Calibration pulse detected: ${pxPerMv.toFixed(1)} px/mV`,
+          });
+        }
+      }
+
+      // If calibration pulse wasn't used or was invalid, use panel-based estimation
+      if (!useCalibrationPulse && avgPanelWidth > 50) {
+        // Choose paper speed based on which gives more reasonable pxPerMm
+        // Typical pxPerMm is 3-15 for most images
+        const use50 = panelBasedPxPerMm25 < 2 || panelBasedPxPerMm50 > 3;
+        const pxPerMm = use50 ? panelBasedPxPerMm50 : panelBasedPxPerMm25;
+        const paperSpeed = use50 ? 50 : 25;
+
         analysis.grid.pxPerMm = pxPerMm;
         analysis.grid.smallBoxPx = pxPerMm;
         analysis.grid.largeBoxPx = pxPerMm * 5;
-        analysis.calibration.confidence = Math.max(analysis.calibration.confidence, calibrationPulse.confidence);
+        analysis.calibration.paperSpeed = paperSpeed;
 
         stages.push({
           name: 'calibration_detection',
-          status: 'success',
-          confidence: calibrationPulse.confidence,
+          status: 'partial',
+          confidence: 0.6,
           durationMs: 0,
-          notes: `Calibration pulse detected: ${pxPerMv.toFixed(1)} px/mV`,
+          notes: `Panel-based estimate: ${pxPerMm.toFixed(2)} px/mm at ${paperSpeed}mm/s`,
         });
       }
 
@@ -311,10 +348,43 @@ export class ECGDigitizer {
 
   /**
    * Validate and fix panel bounds to ensure they're within image dimensions
+   * Also corrects bounds for standard 3x4 grid layouts when AI detection is off
    */
   private validatePanelBounds(panels: PanelAnalysis[], imageWidth: number, imageHeight: number): PanelAnalysis[] {
+    // For 12-panel grids, calculate expected positions and correct major deviations
+    const is12Lead = panels.length === 12 && panels.some(p => p.row !== undefined && p.col !== undefined);
+
+    let expectedRowHeight = 0;
+    let expectedColWidth = 0;
+
+    if (is12Lead) {
+      // Standard 3x4 layout
+      expectedRowHeight = imageHeight / 3;
+      expectedColWidth = imageWidth / 4;
+    }
+
     return panels.map(panel => {
       const bounds = { ...panel.bounds };
+
+      // For 12-lead grids, correct bounds that are significantly off from expected positions
+      if (is12Lead && panel.row !== undefined && panel.col !== undefined) {
+        const expectedY = panel.row * expectedRowHeight;
+        const expectedX = panel.col * expectedColWidth;
+
+        // If Y position is more than 25% off, correct it
+        const yDeviation = Math.abs(bounds.y - expectedY) / expectedRowHeight;
+        if (yDeviation > 0.25) {
+          bounds.y = expectedY + expectedRowHeight * 0.05; // Small margin
+          bounds.height = expectedRowHeight * 0.9;
+        }
+
+        // If X position is more than 25% off, correct it
+        const xDeviation = Math.abs(bounds.x - expectedX) / expectedColWidth;
+        if (xDeviation > 0.25) {
+          bounds.x = expectedX + expectedColWidth * 0.05;
+          bounds.width = expectedColWidth * 0.9;
+        }
+      }
 
       // Clamp to image dimensions
       bounds.x = Math.max(0, Math.min(bounds.x, imageWidth - 10));
@@ -328,6 +398,23 @@ export class ECGDigitizer {
 
       return { ...panel, bounds };
     });
+  }
+
+  /**
+   * Calculate average panel width from detected panels
+   */
+  private calculateAveragePanelWidth(panels: PanelAnalysis[]): number {
+    if (panels.length === 0) return 0;
+
+    // Filter out rhythm strips (typically wider than regular panels)
+    const regularPanels = panels.filter(p => !p.isRhythmStrip);
+    const panelsToUse = regularPanels.length > 0 ? regularPanels : panels;
+
+    const widths = panelsToUse.map(p => p.bounds.width);
+    const sorted = [...widths].sort((a, b) => a - b);
+
+    // Use median to avoid outliers
+    return sorted[Math.floor(sorted.length / 2)];
   }
 
   /**

@@ -89,11 +89,16 @@ export class WaveformTracer {
     const minY = Math.max(0, Math.floor(bounds.y));
     const maxY = Math.min(this.height, Math.ceil(bounds.y + bounds.height));
 
-    // AUTO-DETECT BASELINE: Find the most common Y position of the waveform
-    // This helps correct AI's potentially inaccurate baseline estimates
-    const detectedBaseline = this.detectBaselineY(minX, maxX, minY, maxY);
-    if (detectedBaseline !== null) {
-      baselineY = detectedBaseline;
+    // Only auto-detect baseline if none was provided (undefined or 0)
+    // Trust the pre-computed baseline when available (from baseline-detector.ts)
+    if (!baselineY || baselineY <= 0) {
+      const detectedBaseline = this.detectBaselineY(minX, maxX, minY, maxY);
+      if (detectedBaseline !== null) {
+        baselineY = detectedBaseline;
+      } else {
+        // Fall back to panel center
+        baselineY = (minY + maxY) / 2;
+      }
     }
 
     // Scan each column in the panel
