@@ -2,7 +2,7 @@
 
 > Auto-updated document tracking our ML development process, decisions, and results.
 
-**Last Updated:** 2025-12-24 19:30 UTC
+**Last Updated:** 2025-12-24 19:45 UTC
 
 ---
 
@@ -95,7 +95,7 @@ Build a pediatric ECG classification model that achieves >0.88 AUROC on abnormal
 
 ---
 
-### Phase 5: Age-Aware ResNet (In Progress)
+### Phase 5: Age-Aware ResNet (Completed)
 **Date:** 2025-12-24
 
 **Hypothesis:** Age is the most important auxiliary feature for pediatric ECG interpretation because:
@@ -108,7 +108,7 @@ Build a pediatric ECG classification model that achieves >0.88 AUROC on abnormal
 ```
 ECG Signal (12 leads × 5000 samples)
         ↓
-   ResNet-1D Encoder
+   ResNet-1D Encoder (Medium: 26.7M params)
         ↓
    ECG Embedding (256-dim)
         ↓
@@ -119,7 +119,20 @@ ECG Signal (12 leads × 5000 samples)
    Output (binary: abnormal/normal)
 ```
 
-**Expected improvement:** +0.03 to +0.06 AUROC
+**Training details:**
+- Model: `ResNet1DAge` (medium variant, 26.7M params)
+- Task: Abnormal detection
+- Epochs: 8 of 50 (stopped early for checkpoint)
+- Early stopping patience: 15
+
+**Results:**
+| Metric | Value |
+|--------|-------|
+| Best Validation AUROC | 0.8205 |
+| Best Epoch | 7 |
+| Improvement over baseline | +0.0005 |
+
+**Observation:** Age-aware model shows marginal improvement over baseline (0.820 → 0.8205). The larger model (26.7M vs 969K params) did not significantly boost performance, suggesting the bottleneck may be data quality or label noise rather than model capacity.
 
 ---
 
@@ -127,7 +140,7 @@ ECG Signal (12 leads × 5000 samples)
 
 | Metric | Value | Target |
 |--------|-------|--------|
-| Abnormality AUROC | 0.820 | 0.880+ |
+| Abnormality AUROC (Age-Aware) | 0.8205 | 0.880+ |
 | CHD AUROC | 0.855 | - |
 | Gap to Boston | -0.11 | Close gap |
 
@@ -148,21 +161,26 @@ ml/
 │   └── audit_results/           # Audit outputs
 ├── models/
 │   ├── resnet1d.py              # ResNet-1D architecture
+│   ├── resnet1d_age.py          # Age-aware ResNet-1D (26.7M params)
 │   ├── rule_baseline.py         # Rule-based classifier
 │   └── baseline_results/        # Baseline outputs
 └── training/
     ├── train.py                 # Training script
-    └── checkpoints/             # Model checkpoints
+    ├── train_age_aware.py       # Age-aware training script
+    └── checkpoints/
+        ├── best_age_aware_abnormal.pt  # Best model (AUROC 0.8205)
+        └── ...                  # Other checkpoints
 ```
 
 ---
 
 ## Next Steps
 
-1. [ ] Implement age-aware ResNet with auxiliary input
-2. [ ] Train on abnormality detection
-3. [ ] If AUROC < 0.88, try larger model
-4. [ ] If AUROC >= 0.88, add interpretability (Grad-CAM)
+1. [x] Implement age-aware ResNet with auxiliary input
+2. [x] Train on abnormality detection
+3. [ ] Investigate why larger model didn't help (label noise? data quality?)
+4. [ ] Try multi-label classification instead of binary abnormal/normal
+5. [ ] Add interpretability (Grad-CAM) for clinical validation
 
 ---
 

@@ -15,6 +15,7 @@
  */
 
 import type { LeadName } from '../types';
+import { getAgeGroup, type AgeGroup } from '../../../../data/ageGroups';
 
 /**
  * Types of electrode swaps
@@ -32,6 +33,40 @@ export type ElectrodeSwapType =
   | 'V1_V3'      // Non-adjacent precordial swap
   | 'DEXTROCARDIA' // True dextrocardia (not a swap)
   | 'RIGHT_SIDED'; // Right-sided ECG (intentional)
+
+/**
+ * Options for electrode swap detection
+ */
+export interface ElectrodeSwapOptions {
+  /** Patient age in days - if omitted, uses adult criteria */
+  ageDays?: number;
+  /** Use strict pediatric mode (fewer false positives, may miss some swaps) */
+  strictPediatric?: boolean;
+}
+
+/**
+ * Age-aware thresholds for precordial progression
+ */
+interface AgeAwarePrecordialThresholds {
+  /** Whether RV dominance (R > S in V1) is expected for this age */
+  expectRVDominance: boolean;
+  /** R-wave drop threshold multiplier (1.5 for adults, relaxed for infants) */
+  dropThresholdMultiplier: number;
+}
+
+/**
+ * Pediatric context in detection result
+ */
+export interface PediatricContext {
+  /** Age in days used for interpretation */
+  ageDays: number;
+  /** Age group */
+  ageGroup: AgeGroup;
+  /** Whether RV dominance was expected */
+  expectedRVDominance: boolean;
+  /** Findings suppressed due to age-appropriate variants */
+  suppressedFindings?: string[];
+}
 
 /**
  * Electrode swap detection result
@@ -60,6 +95,9 @@ export interface ElectrodeSwapResult {
 
   /** Could this be true pathology? */
   possiblePathology?: string;
+
+  /** Pediatric context if age was provided */
+  pediatricContext?: PediatricContext;
 }
 
 /**
@@ -86,10 +124,78 @@ export class ElectrodeSwapDetector {
   private leads: Partial<Record<LeadName, number[]>>;
   // Sample rate available for timing-based analysis
   readonly sampleRate: number;
+  // Age in days for pediatric-aware detection
+  private readonly ageDays?: number;
+  // Pediatric detection options
+  private readonly strictPediatric: boolean;
 
-  constructor(leads: Partial<Record<LeadName, number[]>>, sampleRate: number) {
+  constructor(
+    leads: Partial<Record<LeadName, number[]>>,
+    sampleRate: number,
+    options?: ElectrodeSwapOptions
+  ) {
     this.leads = leads;
     this.sampleRate = sampleRate;
+    this.ageDays = options?.ageDays;
+    this.strictPediatric = options?.strictPediatric ?? false;
+  }
+
+  /**
+   * Get age-aware thresholds for precordial progression analysis
+   */
+  private getAgeAwareThresholds(): AgeAwarePrecordialThresholds {
+    // Default to adult thresholds if no age provided
+    if (this.ageDays === undefined) {
+      return {
+        expectRVDominance: false,
+        dropThresholdMultiplier: 1.5,
+      };
+    }
+
+    const ageGroup = getAgeGroup(this.ageDays);
+
+    // RV dominance is expected in neonates and early infants
+    // Neonates: 0-30 days, Early infants: up to ~3 months (92 days)
+    const expectRVDominance =
+      ageGroup.stage === 'neonate' ||
+      (ageGroup.stage === 'infant' && this.ageDays < 92);
+
+    // Determine threshold based on age
+    let dropThresholdMultiplier: number;
+    if (expectRVDominance) {
+      // Neonates/early infants: very relaxed threshold (R > S in V1 is normal)
+      dropThresholdMultiplier = 2.5;
+    } else if (ageGroup.stage === 'infant') {
+      // Later infants (3-12 months): moderately relaxed
+      dropThresholdMultiplier = 2.0;
+    } else if (ageGroup.stage === 'toddler') {
+      // Toddlers: slightly relaxed
+      dropThresholdMultiplier = 1.8;
+    } else {
+      // Children, adolescents, adults: standard threshold
+      dropThresholdMultiplier = 1.5;
+    }
+
+    return {
+      expectRVDominance,
+      dropThresholdMultiplier,
+    };
+  }
+
+  /**
+   * Build pediatric context for the result
+   */
+  private buildPediatricContext(thresholds: AgeAwarePrecordialThresholds, suppressedFindings: string[]): PediatricContext | undefined {
+    if (this.ageDays === undefined) {
+      return undefined;
+    }
+
+    return {
+      ageDays: this.ageDays,
+      ageGroup: getAgeGroup(this.ageDays),
+      expectedRVDominance: thresholds.expectRVDominance,
+      suppressedFindings: suppressedFindings.length > 0 ? suppressedFindings : undefined,
+    };
   }
 
   /**
@@ -97,6 +203,7 @@ export class ElectrodeSwapDetector {
    */
   detect(): ElectrodeSwapResult {
     const evidence: SwapEvidence[] = [];
+    let suppressedFindings: string[] = [];
 
     // Check for LA-RA swap (most common)
     const laRaEvidence = this.checkLaRaSwap();
@@ -106,9 +213,12 @@ export class ElectrodeSwapDetector {
     const einthovenEvidence = this.checkEinthovenViolation();
     if (einthovenEvidence) evidence.push(einthovenEvidence);
 
-    // Check precordial progression
-    const progressionEvidence = this.checkPrecordialProgression();
-    if (progressionEvidence) evidence.push(...progressionEvidence);
+    // Check precordial progression (now returns evidence + suppressed findings)
+    const progressionResult = this.checkPrecordialProgression();
+    if (progressionResult.evidence.length > 0) {
+      evidence.push(...progressionResult.evidence);
+    }
+    suppressedFindings = progressionResult.suppressedFindings;
 
     // Check for specific swap patterns
     const laLlEvidence = this.checkLaLlSwap();
@@ -119,6 +229,10 @@ export class ElectrodeSwapDetector {
 
     // Determine most likely swap
     const { swapType, confidence, affectedLeads } = this.determineSwapType(evidence);
+
+    // Get age-aware thresholds for pediatric context
+    const thresholds = this.getAgeAwareThresholds();
+    const pediatricContext = this.buildPediatricContext(thresholds, suppressedFindings);
 
     // Check for dextrocardia vs swap
     const dextrocardiaCheck = this.checkDextrocardia();
@@ -131,6 +245,7 @@ export class ElectrodeSwapDetector {
         affectedLeads: [],
         clinicalImplications: ['True dextrocardia suspected - not an electrode swap'],
         possiblePathology: 'Dextrocardia (mirror-image heart position)',
+        pediatricContext,
       };
     }
 
@@ -141,6 +256,7 @@ export class ElectrodeSwapDetector {
         evidence,
         affectedLeads: [],
         clinicalImplications: [],
+        pediatricContext,
       };
     }
 
@@ -152,6 +268,7 @@ export class ElectrodeSwapDetector {
       affectedLeads,
       clinicalImplications: this.getClinicalImplications(swapType),
       suggestedCorrection: this.getSuggestedCorrection(swapType),
+      pediatricContext,
     };
   }
 
@@ -259,9 +376,10 @@ export class ElectrodeSwapDetector {
    * Normal: R wave increases V1 → V4/V5, then decreases
    * S wave decreases V1 → V6
    */
-  private checkPrecordialProgression(): SwapEvidence[] | null {
+  private checkPrecordialProgression(): { evidence: SwapEvidence[]; suppressedFindings: string[] } {
     const precordialLeads: LeadName[] = ['V1', 'V2', 'V3', 'V4', 'V5', 'V6'];
     const evidence: SwapEvidence[] = [];
+    const suppressedFindings: string[] = [];
 
     const rAmplitudes: number[] = [];
     const sAmplitudes: number[] = [];
@@ -275,19 +393,40 @@ export class ElectrodeSwapDetector {
       sAmplitudes.push(Math.abs(stats.minAmplitude));
     }
 
-    if (rAmplitudes.length < 6) return null;
+    if (rAmplitudes.length < 6) return { evidence: [], suppressedFindings: [] };
 
-    // Check for broken R-wave progression
+    // Get age-aware thresholds
+    const thresholds = this.getAgeAwareThresholds();
+
+    // Check for broken R-wave progression with age-aware thresholds
     for (let i = 0; i < 5; i++) {
       const current = rAmplitudes[i];
       const next = rAmplitudes[i + 1];
 
-      // R wave should generally increase from V1-V4
-      if (i < 3 && current > next * 1.5) {
+      // For V1->V2 transition in neonates/early infants with expected RV dominance
+      if (i === 0 && thresholds.expectRVDominance) {
+        // R > S in V1 (and even V1 > V2) is NORMAL in neonates
+        // Only flag if there's an extreme drop (3x) which could indicate true swap
+        if (current > next * 3.0 && !this.strictPediatric) {
+          evidence.push({
+            type: 'progression',
+            description: `Extreme R-wave drop V1→V2 (unusual even for RV dominance)`,
+            strength: 0.4, // Lower strength - may still be normal variant
+            leads: ['V1', 'V2'],
+          });
+        } else if (current > next * 1.5) {
+          // Would have been flagged in adult mode, suppress it
+          suppressedFindings.push(`R-wave drop V1→V2 suppressed (normal RV dominance for age)`);
+        }
+        continue; // Don't apply standard threshold to V1->V2 in RV dominance
+      }
+
+      // For other precordial transitions, use age-adjusted threshold
+      if (i < 3 && current > next * thresholds.dropThresholdMultiplier) {
         evidence.push({
           type: 'progression',
           description: `Unexpected R-wave drop from ${precordialLeads[i]} to ${precordialLeads[i + 1]}`,
-          strength: 0.6,
+          strength: thresholds.expectRVDominance ? 0.4 : 0.6,
           leads: [precordialLeads[i], precordialLeads[i + 1]],
         });
       }
@@ -312,7 +451,7 @@ export class ElectrodeSwapDetector {
       }
     }
 
-    return evidence.length > 0 ? evidence : null;
+    return { evidence, suppressedFindings };
   }
 
   /**
@@ -758,23 +897,43 @@ export class ElectrodeSwapDetector {
 
 /**
  * Convenience function for electrode swap detection
+ *
+ * @param leads - ECG lead data
+ * @param sampleRate - Sample rate in Hz
+ * @param options - Optional detection options including patient age
+ * @returns Detection result with any swap findings
+ *
+ * @example
+ * // Adult mode (default)
+ * const result = detectElectrodeSwap(leads, 500);
+ *
+ * @example
+ * // Pediatric mode - prevents false positives for neonatal RV dominance
+ * const result = detectElectrodeSwap(leads, 500, { ageDays: 7 });
  */
 export function detectElectrodeSwap(
   leads: Partial<Record<LeadName, number[]>>,
-  sampleRate: number
+  sampleRate: number,
+  options?: ElectrodeSwapOptions
 ): ElectrodeSwapResult {
-  const detector = new ElectrodeSwapDetector(leads, sampleRate);
+  const detector = new ElectrodeSwapDetector(leads, sampleRate, options);
   return detector.detect();
 }
 
 /**
  * Convenience function to attempt swap correction
+ *
+ * @param leads - ECG lead data
+ * @param sampleRate - Sample rate in Hz
+ * @param options - Optional detection options including patient age
+ * @returns Detection result and corrected leads (if correction possible)
  */
 export function correctElectrodeSwap(
   leads: Partial<Record<LeadName, number[]>>,
-  sampleRate: number
+  sampleRate: number,
+  options?: ElectrodeSwapOptions
 ): { corrected: Partial<Record<LeadName, number[]>> | null; detection: ElectrodeSwapResult } {
-  const detector = new ElectrodeSwapDetector(leads, sampleRate);
+  const detector = new ElectrodeSwapDetector(leads, sampleRate, options);
   const detection = detector.detect();
   const corrected = detector.correctSwap();
   return { corrected, detection };

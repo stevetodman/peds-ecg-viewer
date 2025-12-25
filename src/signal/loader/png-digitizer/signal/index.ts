@@ -92,6 +92,8 @@ export type {
   ElectrodeSwapType,
   ElectrodeSwapResult,
   SwapEvidence,
+  ElectrodeSwapOptions,
+  PediatricContext,
 } from './electrode-swap-detector';
 
 export {
