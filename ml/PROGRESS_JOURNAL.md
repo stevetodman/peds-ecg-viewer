@@ -2,7 +2,7 @@
 
 > Auto-updated document tracking our ML development process, decisions, and results.
 
-**Last Updated:** 2025-12-25 11:00 UTC
+**Last Updated:** 2025-12-25 11:30 UTC
 
 ---
 
@@ -197,6 +197,28 @@ Lead Mask (12-dim) → Embedding → Lead Embedding (8-dim)
 
 **Observation:** Model generalizes well (val ≈ test). Three conditions exceed 0.85 AUROC on test set. Myocarditis is unreliable (0.63 AUROC, near-random AUPRC) due to extreme class imbalance (160 train samples). **Decision: Deprecate myocarditis - would need 800-1500+ samples for reliable detection.**
 
+**Subgroup Analysis:**
+
+| Age Group | N | CHD | Kawasaki | Cardio | Mean |
+|-----------|---|-----|----------|--------|------|
+| Neonate (0-28d) | 56 | 0.612 | - | - | **0.612** ⚠️ |
+| Infant (29d-1y) | 173 | 0.802 | - | 0.852 | 0.827 |
+| Toddler (1-3y) | 286 | 0.847 | 0.789 | 0.837 | 0.824 |
+| Child (3-12y) | 1527 | 0.806 | 0.818 | 0.920 | 0.848 |
+| Adolescent (12+) | 767 | 0.813 | - | 0.946 | 0.879 |
+
+| Lead Config | N | Mean AUROC |
+|-------------|---|------------|
+| 12-lead | 2424 | 0.873 |
+| 9-lead | 385 | 0.785 ⚠️ |
+
+**Findings:**
+- Neonates (<28 days) are a blind spot - only 56 samples, very different ECG patterns
+- 9-lead ECGs perform worse (0.79 vs 0.87) - missing V2/V4/V6 hurts but still usable
+- Infants onwards perform well (0.82+ AUROC)
+
+**Recommendation:** Display warning for neonates that predictions may be less reliable.
+
 ---
 
 ## Current Best Results (Test Set)
@@ -263,8 +285,9 @@ ml/
 7. [x] Deprecate myocarditis (insufficient data - needs 800+ more samples)
 8. [x] Clinical threshold optimization (Youden's J)
 9. [x] Grad-CAM interpretability (`ml/interpretability/gradcam.py`)
-10. [ ] Subgroup analysis (by age, lead config)
+10. [x] Subgroup analysis - neonates underperform (0.61), 9-lead slightly worse (0.79)
 11. [ ] External validation on PTB-XL or similar
+12. [ ] Integrate ML predictions into GEMUSE viewer
 
 ---
 
