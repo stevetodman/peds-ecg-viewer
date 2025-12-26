@@ -17,8 +17,11 @@ export interface AIProvider {
   /** Provider name */
   name: string;
 
-  /** Analyze an ECG image */
+  /** Analyze an ECG image with default comprehensive prompt */
   analyze(imageData: ImageData | Blob | string): Promise<AIAnalysisResult>;
+
+  /** Analyze with a custom prompt (for minimal token usage) */
+  analyzeWithPrompt(imageData: ImageData | Blob | string, prompt: string): Promise<AIAnalysisResult>;
 }
 
 /**
@@ -56,16 +59,20 @@ export abstract class BaseAIProvider implements AIProvider {
   protected abstract callAPI(imageBase64: string, prompt: string): Promise<string>;
 
   /**
-   * Analyze an ECG image
+   * Analyze an ECG image with default comprehensive prompt
    */
   async analyze(image: ImageData | Blob | string): Promise<AIAnalysisResult> {
+    return this.analyzeWithPrompt(image, getAnalysisPrompt());
+  }
+
+  /**
+   * Analyze with a custom prompt (for minimal token usage)
+   */
+  async analyzeWithPrompt(image: ImageData | Blob | string, prompt: string): Promise<AIAnalysisResult> {
     const startTime = Date.now();
 
     // Convert image to base64
     const base64 = await this.imageToBase64(image);
-
-    // Get analysis prompt
-    const prompt = getAnalysisPrompt();
 
     // Call API
     let rawResponse: string;
