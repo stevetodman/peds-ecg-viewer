@@ -497,38 +497,52 @@ export class LocalGridDetector {
 /**
  * Merge AI-detected lead labels with rule-based panel geometry
  * This provides consistent panel bounds while using AI for lead identification
+ * Uses spatial proximity matching rather than row/col indices (which may differ)
  */
 export function mergeAILabelsWithRuleGeometry(
   ruleBasedPanels: PanelAnalysis[],
   aiPanels: PanelAnalysis[]
 ): PanelAnalysis[] {
-  // Create a map of AI leads by approximate position
-  const aiLeadMap = new Map<string, LeadName | null>();
+  // For each rule-based panel, find the nearest AI panel by center position
+  return ruleBasedPanels.map(rulePanel => {
+    const ruleCenterX = rulePanel.bounds.x + rulePanel.bounds.width / 2;
+    const ruleCenterY = rulePanel.bounds.y + rulePanel.bounds.height / 2;
 
-  for (const aiPanel of aiPanels) {
-    if (aiPanel.lead) {
-      // Key by row,col
-      const key = `${aiPanel.row},${aiPanel.col}`;
-      aiLeadMap.set(key, aiPanel.lead);
+    let bestMatch: PanelAnalysis | null = null;
+    let bestDistance = Infinity;
+
+    for (const aiPanel of aiPanels) {
+      if (!aiPanel.lead) continue;
+
+      const aiCenterX = aiPanel.bounds.x + aiPanel.bounds.width / 2;
+      const aiCenterY = aiPanel.bounds.y + aiPanel.bounds.height / 2;
+
+      // Calculate distance between centers
+      const distance = Math.sqrt(
+        Math.pow(ruleCenterX - aiCenterX, 2) +
+        Math.pow(ruleCenterY - aiCenterY, 2)
+      );
+
+      // Only match if distance is reasonable (within half a panel dimension)
+      const maxDistance = Math.max(rulePanel.bounds.width, rulePanel.bounds.height) * 0.75;
+
+      if (distance < bestDistance && distance < maxDistance) {
+        bestDistance = distance;
+        bestMatch = aiPanel;
+      }
     }
-  }
 
-  // Apply AI labels to rule-based panels
-  return ruleBasedPanels.map(panel => {
-    const key = `${panel.row},${panel.col}`;
-    const aiLead = aiLeadMap.get(key);
-
-    if (aiLead) {
+    if (bestMatch && bestMatch.lead) {
       return {
-        ...panel,
-        lead: aiLead,
+        ...rulePanel,
+        lead: bestMatch.lead,
         leadSource: 'text_label' as const,
         labelConfidence: 0.8,
       };
     }
 
     // Keep rule-based lead assignment
-    return panel;
+    return rulePanel;
   });
 }
 
