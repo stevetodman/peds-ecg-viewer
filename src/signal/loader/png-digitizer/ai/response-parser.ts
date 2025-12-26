@@ -108,8 +108,8 @@ export function parseAIResponse(responseText: string): ECGImageAnalysis {
 }
 
 /**
- * Clamp panel bounds to fit within image dimensions
- * If AI returned bounds outside the image, redistribute panels evenly
+ * Validate and correct panel bounds to fit within image dimensions
+ * Also checks for row/column consistency and fixes inconsistent AI detections
  */
 function clampPanelBounds(panels: PanelAnalysis[], imageWidth: number, imageHeight: number): PanelAnalysis[] {
   if (panels.length === 0) return panels;
@@ -122,16 +122,66 @@ function clampPanelBounds(panels: PanelAnalysis[], imageWidth: number, imageHeig
     p.bounds.y + p.bounds.height > imageHeight + 10
   );
 
-  if (!outOfBounds) {
-    // All bounds are within image, just ensure baselineY is valid
+  // Check for row consistency - all panels in a row should have similar Y positions
+  const rowGroups = new Map<number, PanelAnalysis[]>();
+  for (const p of panels) {
+    if (!rowGroups.has(p.row)) rowGroups.set(p.row, []);
+    rowGroups.get(p.row)!.push(p);
+  }
+
+  let inconsistentRows = false;
+  for (const [_row, rowPanels] of rowGroups) {
+    if (rowPanels.length < 2) continue;
+    const yPositions = rowPanels.map(p => p.bounds.y);
+    const yVariance = Math.max(...yPositions) - Math.min(...yPositions);
+    // If Y positions vary by more than 30% of panel height, it's inconsistent
+    const maxHeight = Math.max(...rowPanels.map(p => p.bounds.height));
+    if (yVariance > maxHeight * 0.3) {
+      inconsistentRows = true;
+      break;
+    }
+  }
+
+  // Check for column consistency
+  const colGroups = new Map<number, PanelAnalysis[]>();
+  for (const p of panels) {
+    if (!colGroups.has(p.col)) colGroups.set(p.col, []);
+    colGroups.get(p.col)!.push(p);
+  }
+
+  let inconsistentCols = false;
+  for (const [_col, colPanels] of colGroups) {
+    if (colPanels.length < 2) continue;
+    const xPositions = colPanels.map(p => p.bounds.x);
+    const xVariance = Math.max(...xPositions) - Math.min(...xPositions);
+    const maxWidth = Math.max(...colPanels.map(p => p.bounds.width));
+    if (xVariance > maxWidth * 0.3) {
+      inconsistentCols = true;
+      break;
+    }
+  }
+
+  // Check for height consistency across all panels (excluding rhythm strips)
+  const regularPanels = panels.filter(p => !p.isRhythmStrip);
+  let inconsistentHeights = false;
+  if (regularPanels.length > 3) {
+    const heights = regularPanels.map(p => p.bounds.height).sort((a, b) => a - b);
+    const medianHeight = heights[Math.floor(heights.length / 2)];
+    // If any panel height varies by more than 50% from median, it's inconsistent
+    inconsistentHeights = heights.some(h => Math.abs(h - medianHeight) > medianHeight * 0.5);
+  }
+
+  const needsCorrection = outOfBounds || inconsistentRows || inconsistentCols || inconsistentHeights;
+
+  if (!needsCorrection) {
+    // All bounds are consistent, just ensure baselineY is valid
     return panels.map(p => {
       const clampedBaselineY = Math.max(p.bounds.y, Math.min(p.baselineY, p.bounds.y + p.bounds.height));
       return { ...p, baselineY: clampedBaselineY };
     });
   }
 
-  // Panels are out of bounds - need to recalculate based on grid structure
-
+  // Need to recalculate bounds based on grid structure
   // Determine grid structure from panels
   const rows = new Set(panels.map(p => p.row));
   const cols = new Set(panels.map(p => p.col));
@@ -139,8 +189,8 @@ function clampPanelBounds(panels: PanelAnalysis[], imageWidth: number, imageHeig
   const numCols = Math.max(...cols) + 1;
 
   // Calculate even distribution with margins
-  const marginX = imageWidth * 0.03;
-  const marginY = imageHeight * 0.05;
+  const marginX = imageWidth * 0.02;
+  const marginY = imageHeight * 0.03;
   const panelWidth = (imageWidth - marginX * 2) / numCols;
   const panelHeight = (imageHeight - marginY * 2) / numRows;
 
@@ -151,8 +201,8 @@ function clampPanelBounds(panels: PanelAnalysis[], imageWidth: number, imageHeig
     const newBounds = {
       x: Math.round(newX),
       y: Math.round(newY),
-      width: Math.round(panelWidth * 0.95), // Slight gap between panels
-      height: Math.round(panelHeight * 0.90),
+      width: Math.round(panelWidth * 0.98), // Small gap between panels
+      height: Math.round(panelHeight * 0.95),
     };
 
     // Baseline at vertical center of panel
