@@ -229,6 +229,26 @@ export interface CalibrationAnalysis {
 }
 
 /**
+ * Critical point types for ECG waveform features
+ */
+export type CriticalPointType = 'R' | 'S' | 'Q' | 'P' | 'T';
+
+/**
+ * Critical point - precise location of key ECG features
+ * These are the most important points for accurate digitization
+ */
+export interface CriticalPoint {
+  /** Type of critical point */
+  type: CriticalPointType;
+
+  /** X position as percentage of panel width (0-100) */
+  xPercent: number;
+
+  /** Exact Y pixel coordinate */
+  yPixel: number;
+}
+
+/**
  * Panel (lead) analysis
  */
 export interface PanelAnalysis {
@@ -262,8 +282,11 @@ export interface PanelAnalysis {
   /** Label confidence (0-1) */
   labelConfidence: number;
 
-  /** AI-provided trace points along the waveform (11 points at 0%, 10%, 20%... 100%) */
+  /** AI-provided trace points along the waveform (41 points at 0%, 2.5%, 5%... 100%) */
   tracePoints?: Array<{ xPercent: number; yPixel: number }>;
+
+  /** AI-provided critical points (R peaks, S troughs, P/T waves) for precise feature location */
+  criticalPoints?: CriticalPoint[];
 
   /** Minimum Y pixel the waveform reaches (e.g., R wave peak) */
   waveformYMin?: number;

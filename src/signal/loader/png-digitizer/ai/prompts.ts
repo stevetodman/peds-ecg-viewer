@@ -72,9 +72,9 @@ For each panel, find the baselineY:
 ### STEP 5: TRACE THE WAVEFORM (MOST CRITICAL)
 For each panel, you must VISUALLY TRACE the waveform and report Y coordinates.
 
-At 21 positions across the panel (every 5% from 0% to 100%), report where the WAVEFORM is:
+At 41 positions across the panel (every 2.5% from 0% to 100%), report where the WAVEFORM is:
 - 0% = left edge of panel
-- 5%, 10%, 15%... = intermediate positions
+- 2.5%, 5%, 7.5%, 10%, 12.5%... = intermediate positions
 - 100% = right edge of panel
 
 For each position:
@@ -83,7 +83,26 @@ For each position:
 3. Find where the WAVEFORM trace is (NOT grid lines)
 4. Report the Y pixel coordinate
 
-This gives us 21 ground-truth points per panel that we can interpolate between.
+This gives us 41 ground-truth points per panel - dense enough to capture sharp QRS peaks accurately.
+
+### STEP 5.5: IDENTIFY CRITICAL POINTS (ESSENTIAL FOR ACCURACY)
+For each panel, identify the EXACT pixel locations of the key ECG features. These are the most important points for accurate digitization:
+
+For each QRS complex visible in the panel, report:
+- **R peak**: The highest point (smallest Y) of the R wave - this is the sharp upward spike
+- **S trough**: The lowest point (largest Y) of the S wave - the downward dip after R
+- **Q onset**: Where the QRS complex begins (start of Q wave or R wave if no Q)
+
+For P and T waves (if clearly visible):
+- **P peak**: The peak of the P wave (small rounded bump before QRS)
+- **T peak**: The peak of the T wave (rounded wave after QRS)
+
+Report as criticalPoints array with:
+- **type**: "R", "S", "Q", "P", or "T"
+- **xPercent**: X position as percentage of panel width (0-100)
+- **yPixel**: Exact Y pixel coordinate
+
+Example: If there are 2 QRS complexes in a panel, you should have 2 R peaks, 2 S troughs, etc.
 
 ### STEP 6: MEASURE WAVEFORM BOUNDS
 For each panel, also report:
@@ -146,26 +165,58 @@ Return ONLY valid JSON (no markdown, no explanation):
       "waveformYMax": 210,
       "tracePoints": [
         {"xPercent": 0, "yPixel": 182},
+        {"xPercent": 2.5, "yPixel": 182},
         {"xPercent": 5, "yPixel": 181},
+        {"xPercent": 7.5, "yPixel": 181},
         {"xPercent": 10, "yPixel": 180},
+        {"xPercent": 12.5, "yPixel": 178},
         {"xPercent": 15, "yPixel": 175},
+        {"xPercent": 17.5, "yPixel": 160},
         {"xPercent": 20, "yPixel": 145},
+        {"xPercent": 22.5, "yPixel": 165},
         {"xPercent": 25, "yPixel": 183},
+        {"xPercent": 27.5, "yPixel": 184},
         {"xPercent": 30, "yPixel": 185},
+        {"xPercent": 32.5, "yPixel": 184},
         {"xPercent": 35, "yPixel": 183},
+        {"xPercent": 37.5, "yPixel": 182},
         {"xPercent": 40, "yPixel": 182},
+        {"xPercent": 42.5, "yPixel": 181},
         {"xPercent": 45, "yPixel": 181},
+        {"xPercent": 47.5, "yPixel": 178},
         {"xPercent": 50, "yPixel": 175},
+        {"xPercent": 52.5, "yPixel": 180},
         {"xPercent": 55, "yPixel": 183},
+        {"xPercent": 57.5, "yPixel": 184},
         {"xPercent": 60, "yPixel": 184},
+        {"xPercent": 62.5, "yPixel": 183},
         {"xPercent": 65, "yPixel": 183},
+        {"xPercent": 67.5, "yPixel": 182},
         {"xPercent": 70, "yPixel": 182},
+        {"xPercent": 72.5, "yPixel": 181},
         {"xPercent": 75, "yPixel": 181},
+        {"xPercent": 77.5, "yPixel": 182},
         {"xPercent": 80, "yPixel": 183},
+        {"xPercent": 82.5, "yPixel": 182},
         {"xPercent": 85, "yPixel": 182},
+        {"xPercent": 87.5, "yPixel": 181},
         {"xPercent": 90, "yPixel": 181},
+        {"xPercent": 92.5, "yPixel": 182},
         {"xPercent": 95, "yPixel": 182},
+        {"xPercent": 97.5, "yPixel": 183},
         {"xPercent": 100, "yPixel": 183}
+      ],
+      "criticalPoints": [
+        {"type": "P", "xPercent": 8, "yPixel": 178},
+        {"type": "Q", "xPercent": 17, "yPixel": 184},
+        {"type": "R", "xPercent": 20, "yPixel": 145},
+        {"type": "S", "xPercent": 23, "yPixel": 190},
+        {"type": "T", "xPercent": 35, "yPixel": 175},
+        {"type": "P", "xPercent": 58, "yPixel": 178},
+        {"type": "Q", "xPercent": 67, "yPixel": 184},
+        {"type": "R", "xPercent": 70, "yPixel": 146},
+        {"type": "S", "xPercent": 73, "yPixel": 189},
+        {"type": "T", "xPercent": 85, "yPixel": 176}
       ]
     }
   ]
@@ -173,11 +224,13 @@ Return ONLY valid JSON (no markdown, no explanation):
 
 ## CRITICAL REQUIREMENTS
 
-1. **ALL 12 PANELS** must have complete tracePoints (21 points each)
-2. **tracePoints must be on the WAVEFORM**, not on grid lines
-3. **baselineY must be the isoelectric line**, not the panel center
-4. **Precision matters** - wrong Y values will cause digitization to fail
-5. **Verify Einthoven's Law** - II = I + III at corresponding time points
+1. **ALL 12 PANELS** must have complete tracePoints (41 points each, every 2.5%)
+2. **ALL 12 PANELS** must have criticalPoints identifying R peaks, S troughs, and visible P/T waves
+3. **tracePoints must be on the WAVEFORM**, not on grid lines
+4. **baselineY must be the isoelectric line**, not the panel center
+5. **Precision matters** - wrong Y values will cause digitization to fail
+6. **Verify Einthoven's Law** - II = I + III at corresponding time points
+7. **R peaks are the most important** - they must be precisely located for accurate digitization
 
 ## COMMON MISTAKES TO AVOID
 

@@ -546,8 +546,9 @@ export class ECGDigitizer {
   }
 
   /**
-   * Create a RawTrace from AI-provided tracePoints
-   * Interpolates between the sparse AI points to create a dense trace
+   * Create a RawTrace from AI-provided tracePoints and criticalPoints
+   * Merges trace points with critical points for precise feature location,
+   * then interpolates to create a dense trace
    */
   private createTraceFromAIPoints(panel: PanelAnalysis): RawTrace | null {
     if (!panel.tracePoints || panel.tracePoints.length < 2 || !panel.lead) {
@@ -555,9 +556,35 @@ export class ECGDigitizer {
     }
 
     const bounds = panel.bounds;
-    const tracePoints = panel.tracePoints.sort((a, b) => a.xPercent - b.xPercent);
 
-    // Generate dense trace by interpolating between AI points
+    // Merge tracePoints with criticalPoints for best accuracy
+    // Critical points (R peaks, S troughs) are higher priority
+    const allPoints: Array<{ xPercent: number; yPixel: number; isCritical: boolean }> = [];
+
+    // Add all trace points
+    for (const tp of panel.tracePoints) {
+      allPoints.push({ xPercent: tp.xPercent, yPixel: tp.yPixel, isCritical: false });
+    }
+
+    // Add critical points (these override nearby trace points)
+    if (panel.criticalPoints && panel.criticalPoints.length > 0) {
+      for (const cp of panel.criticalPoints) {
+        // Remove any trace points within 1% of this critical point
+        const threshold = 1.0;
+        for (let i = allPoints.length - 1; i >= 0; i--) {
+          if (!allPoints[i].isCritical && Math.abs(allPoints[i].xPercent - cp.xPercent) < threshold) {
+            allPoints.splice(i, 1);
+          }
+        }
+        // Add the critical point
+        allPoints.push({ xPercent: cp.xPercent, yPixel: cp.yPixel, isCritical: true });
+      }
+    }
+
+    // Sort by xPercent
+    allPoints.sort((a, b) => a.xPercent - b.xPercent);
+
+    // Generate dense trace by interpolating between merged points
     const xPixels: number[] = [];
     const yPixels: number[] = [];
     const confidence: number[] = [];
@@ -566,30 +593,45 @@ export class ECGDigitizer {
     for (let x = bounds.x; x < bounds.x + bounds.width; x++) {
       const xPercent = ((x - bounds.x) / bounds.width) * 100;
 
-      // Find surrounding AI points for interpolation
-      let leftPoint = tracePoints[0];
-      let rightPoint = tracePoints[tracePoints.length - 1];
+      // Find surrounding points for interpolation
+      let leftPoint = allPoints[0];
+      let rightPoint = allPoints[allPoints.length - 1];
+      let leftIdx = 0;
 
-      for (let i = 0; i < tracePoints.length - 1; i++) {
-        if (tracePoints[i].xPercent <= xPercent && tracePoints[i + 1].xPercent >= xPercent) {
-          leftPoint = tracePoints[i];
-          rightPoint = tracePoints[i + 1];
+      for (let i = 0; i < allPoints.length - 1; i++) {
+        if (allPoints[i].xPercent <= xPercent && allPoints[i + 1].xPercent >= xPercent) {
+          leftPoint = allPoints[i];
+          rightPoint = allPoints[i + 1];
+          leftIdx = i;
           break;
         }
       }
 
-      // Linear interpolation between points
+      // Interpolation between points
       let yPixel: number;
       if (leftPoint.xPercent === rightPoint.xPercent) {
         yPixel = leftPoint.yPixel;
       } else {
         const t = (xPercent - leftPoint.xPercent) / (rightPoint.xPercent - leftPoint.xPercent);
-        yPixel = leftPoint.yPixel + t * (rightPoint.yPixel - leftPoint.yPixel);
+
+        // Use cubic interpolation near critical points for smoother peaks
+        if (leftPoint.isCritical || rightPoint.isCritical) {
+          // Hermite spline for smoother interpolation around critical points
+          yPixel = this.hermiteInterpolate(allPoints, leftIdx, t);
+        } else {
+          // Linear interpolation for regular segments
+          yPixel = leftPoint.yPixel + t * (rightPoint.yPixel - leftPoint.yPixel);
+        }
       }
 
       xPixels.push(x);
       yPixels.push(yPixel);
-      confidence.push(0.95); // High confidence for AI-provided points
+
+      // Higher confidence near critical points
+      const nearCritical = allPoints.some(p =>
+        p.isCritical && Math.abs(p.xPercent - xPercent) < 3
+      );
+      confidence.push(nearCritical ? 0.98 : 0.95);
     }
 
     return {
@@ -602,6 +644,39 @@ export class ECGDigitizer {
       gaps: [],
       method: 'ai_guided',
     };
+  }
+
+  /**
+   * Hermite spline interpolation for smoother curves around critical points
+   * Uses Catmull-Rom spline for natural-looking ECG waveforms
+   */
+  private hermiteInterpolate(
+    points: Array<{ xPercent: number; yPixel: number; isCritical: boolean }>,
+    idx: number,
+    t: number
+  ): number {
+    // Get 4 points for Catmull-Rom: p0, p1, p2, p3
+    const p0 = points[Math.max(0, idx - 1)];
+    const p1 = points[idx];
+    const p2 = points[Math.min(points.length - 1, idx + 1)];
+    const p3 = points[Math.min(points.length - 1, idx + 2)];
+
+    // Catmull-Rom spline coefficients
+    const t2 = t * t;
+    const t3 = t2 * t;
+
+    const y0 = p0.yPixel;
+    const y1 = p1.yPixel;
+    const y2 = p2.yPixel;
+    const y3 = p3.yPixel;
+
+    // Catmull-Rom formula
+    const a = -0.5 * y0 + 1.5 * y1 - 1.5 * y2 + 0.5 * y3;
+    const b = y0 - 2.5 * y1 + 2 * y2 - 0.5 * y3;
+    const c = -0.5 * y0 + 0.5 * y2;
+    const d = y1;
+
+    return a * t3 + b * t2 + c * t + d;
   }
 
   /**

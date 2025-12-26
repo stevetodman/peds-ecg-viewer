@@ -2,11 +2,12 @@
  * Test the robust digitizer with retry and cross-lead validation
  */
 
+import 'dotenv/config';
 import { readFileSync } from 'fs';
 import { PNG } from 'pngjs';
 import { RobustECGDigitizer } from '../src/signal/loader/png-digitizer/robust-digitizer';
 
-const TEST_IMAGE = '/Users/steven/gemuse/test_ecgs/roundtrip_test.png';
+const TEST_IMAGE = process.argv[2] || '/Users/steven/gemuse/test_ecgs/roundtrip_test.png';
 const SAMPLE_ECG = '/Users/steven/gemuse/json_ecgs/ASD_P00073_E02.json';
 
 async function test() {

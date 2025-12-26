@@ -15,6 +15,8 @@ import type {
   ImageIssue,
   Bounds,
   Point,
+  CriticalPoint,
+  CriticalPointType,
 } from '../types';
 import type { LeadName } from '../../../../types';
 
@@ -525,6 +527,7 @@ function parsePanel(panel: unknown, idx: number): PanelAnalysis {
     labelConfidence: parseConfidence(p?.labelConfidence),
     // AI-provided waveform trace data
     tracePoints: parseTracePoints(p?.tracePoints),
+    criticalPoints: parseCriticalPoints(p?.criticalPoints),
     waveformYMin: parseNumber(p?.waveformYMin),
     waveformYMax: parseNumber(p?.waveformYMax),
   };
@@ -545,6 +548,33 @@ function parseTracePoints(tracePoints: unknown): Array<{ xPercent: number; yPixe
 
     if (xPercent !== undefined && yPixel !== undefined) {
       result.push({ xPercent, yPixel });
+    }
+  }
+
+  return result.length > 0 ? result : undefined;
+}
+
+/**
+ * Valid critical point types
+ */
+const VALID_CRITICAL_POINT_TYPES: CriticalPointType[] = ['R', 'S', 'Q', 'P', 'T'];
+
+/**
+ * Parse critical points array
+ */
+function parseCriticalPoints(criticalPoints: unknown): CriticalPoint[] | undefined {
+  if (!Array.isArray(criticalPoints)) return undefined;
+
+  const result: CriticalPoint[] = [];
+
+  for (const pt of criticalPoints) {
+    const p = pt as Record<string, unknown> | undefined;
+    const type = parseString(p?.type)?.toUpperCase() as CriticalPointType;
+    const xPercent = parseNumber(p?.xPercent);
+    const yPixel = parseNumber(p?.yPixel);
+
+    if (type && VALID_CRITICAL_POINT_TYPES.includes(type) && xPercent !== undefined && yPixel !== undefined) {
+      result.push({ type, xPercent, yPixel });
     }
   }
 
