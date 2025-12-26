@@ -108,10 +108,18 @@ export class SignalReconstructor {
       tracesByLead.set(trace.lead, existing);
     }
 
+    // CRITICAL FIX: Calculate global X reference per column for time alignment
+    // Leads in the same column must use the same X-to-time mapping
+    const columnMinX = this.calculateColumnMinX(traces);
+
     // Process each lead
     for (const [lead, leadTraces] of tracesByLead) {
       // Sort traces by time position (x coordinate)
       leadTraces.sort((a, b) => Math.min(...a.xPixels) - Math.min(...b.xPixels));
+
+      // Get the column for this lead (for time alignment)
+      const column = this.getLeadColumn(lead);
+      const globalMinX = columnMinX.get(column) ?? Math.min(...leadTraces[0].xPixels);
 
       // Combine all traces for this lead
       const allVoltages: number[] = [];
@@ -126,15 +134,15 @@ export class SignalReconstructor {
           return mV * 1000;  // Convert to microvolts
         });
 
-        // Convert X pixels to time (seconds)
-        const minX = Math.min(...trace.xPixels);
-        const times = trace.xPixels.map(x => timeOffset + (x - minX) / pxPerSec);
+        // Convert X pixels to time (seconds) using GLOBAL column reference
+        // This ensures all leads in the same column are time-aligned
+        const times = trace.xPixels.map(x => timeOffset + (x - globalMinX) / pxPerSec);
 
         allVoltages.push(...voltages);
         allTimes.push(...times);
 
-        // Update time offset for next trace
-        if (times.length > 0) {
+        // Update time offset for next trace (only for rhythm strips spanning multiple panels)
+        if (leadTraces.length > 1 && times.length > 0) {
           timeOffset = Math.max(...times) + 1 / pxPerSec; // Small gap
         }
       }
@@ -191,6 +199,47 @@ export class SignalReconstructor {
     this.validateTiming(signal, paperSpeed);
 
     return signal;
+  }
+
+  /**
+   * Get the column index for a lead in standard 12-lead layout
+   * Column 0: I, II, III
+   * Column 1: aVR, aVL, aVF
+   * Column 2: V1, V2, V3
+   * Column 3: V4, V5, V6
+   */
+  private getLeadColumn(lead: LeadName): number {
+    const columnMap: Record<LeadName, number> = {
+      'I': 0, 'II': 0, 'III': 0,
+      'aVR': 1, 'aVL': 1, 'aVF': 1,
+      'V1': 2, 'V2': 2, 'V3': 2,
+      'V4': 3, 'V5': 3, 'V6': 3,
+      // Extended leads (pediatric)
+      'V3R': 4, 'V4R': 4, 'V7': 4,
+    };
+    return columnMap[lead] ?? 0;
+  }
+
+  /**
+   * Calculate the global minimum X position for each column
+   * This ensures all leads in the same column share the same time reference
+   */
+  private calculateColumnMinX(traces: RawTrace[]): Map<number, number> {
+    const columnMinX = new Map<number, number>();
+
+    for (const trace of traces) {
+      if (trace.xPixels.length === 0) continue;
+
+      const column = this.getLeadColumn(trace.lead);
+      const traceMinX = Math.min(...trace.xPixels);
+
+      const currentMin = columnMinX.get(column);
+      if (currentMin === undefined || traceMinX < currentMin) {
+        columnMinX.set(column, traceMinX);
+      }
+    }
+
+    return columnMinX;
   }
 
   /**
