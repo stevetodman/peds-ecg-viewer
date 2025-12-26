@@ -103,7 +103,7 @@ export class WaveformTracer {
 
     // Scan each column in the panel
     for (let x = minX; x < maxX; x++) {
-      const result = this.traceColumn(x, minY, maxY);
+      const result = this.traceColumn(x, minY, maxY, baselineY);
 
       if (result.found && result.confidence >= this.config.minPointConfidence) {
         // End any current gap
@@ -193,32 +193,101 @@ export class WaveformTracer {
 
   /**
    * Find waveform Y position at a single X column
-   * Uses intensity-weighted centroid for sub-pixel accuracy
+   * Uses segment-based detection to avoid grid lines and artifacts
    */
   private traceColumn(
     x: number,
     yMin: number,
-    yMax: number
+    yMax: number,
+    expectedBaselineY?: number
   ): { found: boolean; y: number; confidence: number } {
-    let sumY = 0;
-    let sumWeight = 0;
-    let maxDarkness = 0;
+    // First pass: find all dark segments (continuous vertical runs)
+    const segments: Array<{ startY: number; endY: number; sumDarkness: number; maxDarkness: number }> = [];
+    let currentSegment: typeof segments[0] | null = null;
 
     for (let y = yMin; y < yMax; y++) {
       const idx = (y * this.width + x) * 4;
       const r = this.data[idx];
       const g = this.data[idx + 1];
       const b = this.data[idx + 2];
-
-      // Calculate darkness or color match
       const darkness = this.calculateDarkness(r, g, b);
 
-      // Threshold for waveform detection (accounting for anti-aliasing)
+      if (darkness > this.config.darknessThreshold) {
+        if (!currentSegment) {
+          currentSegment = { startY: y, endY: y, sumDarkness: darkness, maxDarkness: darkness };
+        } else {
+          currentSegment.endY = y;
+          currentSegment.sumDarkness += darkness;
+          currentSegment.maxDarkness = Math.max(currentSegment.maxDarkness, darkness);
+        }
+      } else {
+        if (currentSegment) {
+          segments.push(currentSegment);
+          currentSegment = null;
+        }
+      }
+    }
+
+    if (currentSegment) {
+      segments.push(currentSegment);
+    }
+
+    if (segments.length === 0) {
+      return { found: false, y: 0, confidence: 0 };
+    }
+
+    // Find the best segment:
+    // - Grid lines are typically thin (1-3 pixels)
+    // - Waveforms are 3-15 pixels depending on resolution
+    // - Vertical artifacts (label boxes, dividers) are very thick (>20 pixels)
+    // - REJECT segments that are too thick - they are artifacts not waveform
+
+    let bestSegment: typeof segments[0] | null = null;
+    let bestScore = 0;
+
+    for (const seg of segments) {
+      const thickness = seg.endY - seg.startY + 1;
+      const avgDarkness = seg.sumDarkness / thickness;
+
+      // REJECT very thick segments (>12 pixels) - these are artifacts
+      // Real waveform traces are 1-8 pixels thick typically
+      if (thickness > 12) {
+        continue;
+      }
+
+      // Score: prefer moderately thick segments with high darkness
+      let score = avgDarkness;
+      if (thickness >= 2) score *= 1.5;
+      if (thickness >= 4) score *= 1.3;
+      if (thickness < 2) score *= 0.5; // Penalize thin lines (grid)
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestSegment = seg;
+      }
+    }
+
+    // If all segments were rejected (all too thick = artifact columns), skip this column
+    // The interpolation logic will fill in the gap
+    if (!bestSegment) {
+      return { found: false, y: 0, confidence: 0 };
+    }
+
+    // Calculate weighted centroid of the best segment
+    let sumY = 0;
+    let sumWeight = 0;
+
+    for (let y = bestSegment.startY; y <= bestSegment.endY; y++) {
+      const idx = (y * this.width + x) * 4;
+      const r = this.data[idx];
+      const g = this.data[idx + 1];
+      const b = this.data[idx + 2];
+      const darkness = this.calculateDarkness(r, g, b);
+
       if (darkness > this.config.darknessThreshold) {
         const weight = darkness / 255;
         sumY += y * weight;
         sumWeight += weight;
-        maxDarkness = Math.max(maxDarkness, darkness);
       }
     }
 
@@ -226,7 +295,7 @@ export class WaveformTracer {
       return {
         found: true,
         y: sumY / sumWeight,
-        confidence: Math.min(1, maxDarkness / 200),
+        confidence: Math.min(1, bestSegment.maxDarkness / 200),
       };
     }
 

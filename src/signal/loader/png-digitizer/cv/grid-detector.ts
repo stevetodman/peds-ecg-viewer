@@ -532,6 +532,18 @@ export function mergeAILabelsWithRuleGeometry(
       }
     }
 
+    // Trust rule-based positional labels for standard 12-lead layouts
+    // Only use AI labels when rule-based detection couldn't assign a label
+    if (rulePanel.lead) {
+      // Rule-based already has a label - verify it matches AI (but keep rule-based)
+      if (bestMatch && bestMatch.lead && bestMatch.lead !== rulePanel.lead) {
+        // Mismatch - log for debugging but trust rule-based position
+        // AI text recognition can be inconsistent
+      }
+      return rulePanel;
+    }
+
+    // No rule-based label - use AI label if available
     if (bestMatch && bestMatch.lead) {
       return {
         ...rulePanel,
@@ -541,7 +553,6 @@ export function mergeAILabelsWithRuleGeometry(
       };
     }
 
-    // Keep rule-based lead assignment
     return rulePanel;
   });
 }
