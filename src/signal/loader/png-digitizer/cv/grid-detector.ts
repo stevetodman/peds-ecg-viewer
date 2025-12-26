@@ -493,3 +493,62 @@ export class LocalGridDetector {
     return `#${toHex(color.r)}${toHex(color.g)}${toHex(color.b)}`;
   }
 }
+
+/**
+ * Merge AI-detected lead labels with rule-based panel geometry
+ * This provides consistent panel bounds while using AI for lead identification
+ */
+export function mergeAILabelsWithRuleGeometry(
+  ruleBasedPanels: PanelAnalysis[],
+  aiPanels: PanelAnalysis[]
+): PanelAnalysis[] {
+  // Create a map of AI leads by approximate position
+  const aiLeadMap = new Map<string, LeadName | null>();
+
+  for (const aiPanel of aiPanels) {
+    if (aiPanel.lead) {
+      // Key by row,col
+      const key = `${aiPanel.row},${aiPanel.col}`;
+      aiLeadMap.set(key, aiPanel.lead);
+    }
+  }
+
+  // Apply AI labels to rule-based panels
+  return ruleBasedPanels.map(panel => {
+    const key = `${panel.row},${panel.col}`;
+    const aiLead = aiLeadMap.get(key);
+
+    if (aiLead) {
+      return {
+        ...panel,
+        lead: aiLead,
+        leadSource: 'text_label' as const,
+        labelConfidence: 0.8,
+      };
+    }
+
+    // Keep rule-based lead assignment
+    return panel;
+  });
+}
+
+/**
+ * Detect panels using hybrid approach:
+ * 1. Rule-based geometry for consistent bounds
+ * 2. AI for lead label verification
+ */
+export async function detectPanelsHybrid(
+  imageData: ImageData,
+  aiAnalysis?: ECGImageAnalysis
+): Promise<PanelAnalysis[]> {
+  // Get rule-based panels
+  const detector = new LocalGridDetector(imageData);
+  const ruleBasedResult = await detector.analyze();
+
+  if (!aiAnalysis) {
+    return ruleBasedResult.panels;
+  }
+
+  // Merge AI labels with rule-based geometry
+  return mergeAILabelsWithRuleGeometry(ruleBasedResult.panels, aiAnalysis.panels);
+}

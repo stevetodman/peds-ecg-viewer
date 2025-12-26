@@ -26,6 +26,7 @@ import { SignalReconstructor } from './signal/reconstructor';
 import { QualityScorer } from './signal/quality-scorer';
 import { detectCalibrationPulse } from './cv/calibration-pulse-detector';
 import { detectBaseline } from './cv/baseline-detector';
+import { mergeAILabelsWithRuleGeometry } from './cv/grid-detector';
 import type { LeadName } from '../../../types';
 
 /**
@@ -156,6 +157,36 @@ export class ECGDigitizer {
           startTime,
           'Unable to detect ECG layout. Try using a clearer image or user-assisted mode.'
         );
+      }
+
+      // HYBRID MODE: Use rule-based geometry with AI labels for consistency
+      // This addresses the issue where AI returns inconsistent panel bounds
+      if (aiResult && this.config.enableLocalFallback) {
+        try {
+          const localDetector = new LocalGridDetector(imageData);
+          const ruleBasedAnalysis = await localDetector.analyze();
+
+          // Merge: use rule-based geometry, AI lead labels
+          const hybridPanels = mergeAILabelsWithRuleGeometry(
+            ruleBasedAnalysis.panels,
+            aiResult.analysis.panels
+          );
+
+          // Replace AI panels with hybrid panels for more consistent geometry
+          analysis.panels = hybridPanels;
+          method = 'ai_guided'; // Still AI-guided since we use AI for labels
+
+          stages.push({
+            name: 'hybrid_merge',
+            status: 'success',
+            confidence: 0.8,
+            durationMs: 0,
+            notes: 'Merged AI labels with rule-based geometry',
+          });
+        } catch (hybridError) {
+          // Fallback to original AI panels if hybrid merge fails
+          console.warn('Hybrid merge failed:', hybridError);
+        }
       }
 
       // Validate grid info
