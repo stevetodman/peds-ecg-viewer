@@ -532,28 +532,48 @@ export function mergeAILabelsWithRuleGeometry(
       }
     }
 
+    // ALWAYS copy AI tracePoints, baselineY, waveformYMin/Max when available
+    // These are absolute pixel coordinates from AI vision analysis
+    const aiData: Partial<PanelAnalysis> = {};
+    if (bestMatch) {
+      if (bestMatch.tracePoints && bestMatch.tracePoints.length > 0) {
+        aiData.tracePoints = bestMatch.tracePoints;
+      }
+      if (bestMatch.waveformYMin !== undefined) {
+        aiData.waveformYMin = bestMatch.waveformYMin;
+      }
+      if (bestMatch.waveformYMax !== undefined) {
+        aiData.waveformYMax = bestMatch.waveformYMax;
+      }
+      // Also use AI's baselineY if it seems valid (within panel bounds)
+      if (bestMatch.baselineY !== undefined) {
+        const panelTop = rulePanel.bounds.y;
+        const panelBottom = rulePanel.bounds.y + rulePanel.bounds.height;
+        if (bestMatch.baselineY >= panelTop && bestMatch.baselineY <= panelBottom) {
+          aiData.baselineY = bestMatch.baselineY;
+        }
+      }
+    }
+
     // Trust rule-based positional labels for standard 12-lead layouts
     // Only use AI labels when rule-based detection couldn't assign a label
     if (rulePanel.lead) {
-      // Rule-based already has a label - verify it matches AI (but keep rule-based)
-      if (bestMatch && bestMatch.lead && bestMatch.lead !== rulePanel.lead) {
-        // Mismatch - log for debugging but trust rule-based position
-        // AI text recognition can be inconsistent
-      }
-      return rulePanel;
+      // Rule-based already has a label - use it but merge in AI trace data
+      return { ...rulePanel, ...aiData };
     }
 
     // No rule-based label - use AI label if available
     if (bestMatch && bestMatch.lead) {
       return {
         ...rulePanel,
+        ...aiData,
         lead: bestMatch.lead,
         leadSource: 'text_label' as const,
         labelConfidence: 0.8,
       };
     }
 
-    return rulePanel;
+    return { ...rulePanel, ...aiData };
   });
 }
 

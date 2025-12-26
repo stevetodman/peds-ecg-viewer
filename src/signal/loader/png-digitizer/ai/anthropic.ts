@@ -16,7 +16,8 @@ export class AnthropicProvider extends BaseAIProvider {
 
   constructor(apiKey: string, model?: string) {
     super(apiKey, model);
-    this.initModel('claude-sonnet-4-20250514');
+    // Always use Opus 4.5 for best vision accuracy in ECG tracing
+    this.initModel('claude-opus-4-5-20251101');
   }
 
   protected async callAPI(imageBase64: string, prompt: string): Promise<string> {
@@ -39,7 +40,7 @@ export class AnthropicProvider extends BaseAIProvider {
       headers,
       body: JSON.stringify({
         model: this.model,
-        max_tokens: 4096,
+        max_tokens: 16384,
         messages: [
           {
             role: 'user',

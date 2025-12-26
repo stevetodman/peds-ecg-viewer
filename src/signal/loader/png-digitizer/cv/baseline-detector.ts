@@ -35,12 +35,21 @@ export class BaselineDetector {
   private height: number;
   private data: Uint8ClampedArray;
   private darknessThreshold: number;
+  private waveformColor?: { r: number; g: number; b: number };
+  private useStrictColorMatching: boolean;
 
-  constructor(imageData: ImageData, darknessThreshold = 100) {
+  constructor(
+    imageData: ImageData,
+    darknessThreshold = 100,
+    waveformColor?: { r: number; g: number; b: number },
+    useStrictColorMatching = false
+  ) {
     this.width = imageData.width;
     this.height = imageData.height;
     this.data = imageData.data;
     this.darknessThreshold = darknessThreshold;
+    this.waveformColor = waveformColor;
+    this.useStrictColorMatching = useStrictColorMatching;
   }
 
   /**
@@ -248,13 +257,63 @@ export class BaselineDetector {
 
   /**
    * Find the Y position of the waveform at a given X
-   * Uses weighted centroid for sub-pixel accuracy
+   * Uses segment-based detection to handle multiple dark features
+   * Returns the centroid of the segment closest to panel center
    */
   private findWaveformY(x: number, minY: number, maxY: number): number | null {
-    let sumY = 0;
-    let sumWeight = 0;
+    const panelCenterY = (minY + maxY) / 2;
+
+    // Find all dark segments at this column
+    const segments: Array<{ startY: number; endY: number; sumDark: number }> = [];
+    let currentSegment: typeof segments[0] | null = null;
 
     for (let y = minY; y < maxY; y++) {
+      const darkness = this.getPixelDarkness(x, y);
+      if (darkness > this.darknessThreshold) {
+        if (!currentSegment) {
+          currentSegment = { startY: y, endY: y, sumDark: darkness };
+        } else {
+          currentSegment.endY = y;
+          currentSegment.sumDark += darkness;
+        }
+      } else {
+        if (currentSegment) {
+          segments.push(currentSegment);
+          currentSegment = null;
+        }
+      }
+    }
+    if (currentSegment) {
+      segments.push(currentSegment);
+    }
+
+    if (segments.length === 0) {
+      return null;
+    }
+
+    // Filter out very thick segments (>12px = likely artifacts)
+    const validSegments = segments.filter(s => (s.endY - s.startY + 1) <= 12);
+    if (validSegments.length === 0) {
+      return null;
+    }
+
+    // Pick segment closest to panel center
+    let bestSegment = validSegments[0];
+    let minDist = Math.abs((bestSegment.startY + bestSegment.endY) / 2 - panelCenterY);
+
+    for (const seg of validSegments) {
+      const centerY = (seg.startY + seg.endY) / 2;
+      const dist = Math.abs(centerY - panelCenterY);
+      if (dist < minDist) {
+        minDist = dist;
+        bestSegment = seg;
+      }
+    }
+
+    // Return centroid of best segment
+    let sumY = 0;
+    let sumWeight = 0;
+    for (let y = bestSegment.startY; y <= bestSegment.endY; y++) {
       const darkness = this.getPixelDarkness(x, y);
       if (darkness > this.darknessThreshold) {
         const weight = darkness / 255;
@@ -267,7 +326,7 @@ export class BaselineDetector {
       return sumY / sumWeight;
     }
 
-    return null;
+    return (bestSegment.startY + bestSegment.endY) / 2;
   }
 
   /**

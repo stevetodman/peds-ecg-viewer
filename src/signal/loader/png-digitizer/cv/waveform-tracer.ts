@@ -25,6 +25,12 @@ export interface WaveformTracerConfig {
   /** Waveform color (if known) - helps with colored waveforms */
   waveformColor?: { r: number; g: number; b: number };
 
+  /** Color tolerance for waveform matching (0-255, default 50) */
+  colorTolerance?: number;
+
+  /** Use strict color matching (only trace pixels matching waveformColor) */
+  useStrictColorMatching?: boolean;
+
   /** Use contour tracing method */
   useContourTracing?: boolean;
 
@@ -43,6 +49,8 @@ const DEFAULT_CONFIG: Required<WaveformTracerConfig> = {
   maxInterpolateGap: 10,
   minPointConfidence: 0.3,
   waveformColor: { r: 0, g: 0, b: 0 }, // Black
+  colorTolerance: 50,
+  useStrictColorMatching: false, // Enable when waveformColor is known from AI
   useContourTracing: true,
   rejectArtifacts: true,
   smoothingWindow: 3,
@@ -89,6 +97,9 @@ export class WaveformTracer {
     const minY = Math.max(0, Math.floor(bounds.y));
     const maxY = Math.min(this.height, Math.ceil(bounds.y + bounds.height));
 
+    // Detect horizontal line artifacts before tracing
+    const artifactYRanges = this.detectHorizontalArtifacts(minX, maxX, minY, maxY);
+
     // Only auto-detect baseline if none was provided (undefined or 0)
     // Trust the pre-computed baseline when available (from baseline-detector.ts)
     if (!baselineY || baselineY <= 0) {
@@ -101,9 +112,16 @@ export class WaveformTracer {
       }
     }
 
+    // Track previous Y for continuity - preserved across gaps
+    let prevY: number | null = null;
+    // Track last known good Y for recovery after gaps
+    let lastKnownY: number | null = null;
+
     // Scan each column in the panel
     for (let x = minX; x < maxX; x++) {
-      const result = this.traceColumn(x, minY, maxY, baselineY);
+      // Use lastKnownY if prevY is null (e.g., after a gap)
+      const continuityY = prevY ?? lastKnownY;
+      const result = this.traceColumnWithContinuity(x, minY, maxY, baselineY, artifactYRanges, continuityY);
 
       if (result.found && result.confidence >= this.config.minPointConfidence) {
         // End any current gap
@@ -115,7 +133,10 @@ export class WaveformTracer {
         xPixels.push(x);
         yPixels.push(result.y);
         confidence.push(result.confidence);
+        prevY = result.y; // Track for continuity
+        lastKnownY = result.y; // Remember for gap recovery
       } else {
+        prevY = null; // Reset immediate continuity, but keep lastKnownY
         // Start or continue gap
         if (gapStart === null) {
           gapStart = x;
@@ -303,9 +324,208 @@ export class WaveformTracer {
   }
 
   /**
+   * Detect horizontal line artifacts that span most of the panel width
+   * These are grid lines or separators that should be excluded from waveform tracing
+   * Only flags lines near panel EDGES (top/bottom 20%), not center (where waveform is)
+   */
+  private detectHorizontalArtifacts(
+    minX: number,
+    maxX: number,
+    minY: number,
+    maxY: number
+  ): Array<{ startY: number; endY: number }> {
+    const panelWidth = maxX - minX;
+    const panelHeight = maxY - minY;
+    const artifacts: Array<{ startY: number; endY: number }> = [];
+
+    // Count dark pixels at each Y level
+    const yDarkCounts = new Map<number, number>();
+
+    for (let y = minY; y < maxY; y++) {
+      let darkCount = 0;
+      for (let x = minX; x < maxX; x++) {
+        const idx = (y * this.width + x) * 4;
+        const r = this.data[idx];
+        const g = this.data[idx + 1];
+        const b = this.data[idx + 2];
+        const darkness = this.calculateDarkness(r, g, b);
+        if (darkness > this.config.darknessThreshold) {
+          darkCount++;
+        }
+      }
+      yDarkCounts.set(y, darkCount);
+    }
+
+    // Find Y levels where dark pixels span >65% of panel width
+    // AND are in the edge regions (top/bottom 25% of panel)
+    // Waveform baseline is typically centered, artifact lines are at edges
+    const artifactThreshold = panelWidth * 0.65;
+    const edgeMargin = panelHeight * 0.25;
+    const topEdge = minY + edgeMargin;
+    const bottomEdge = maxY - edgeMargin;
+
+    let artifactStart: number | null = null;
+    for (let y = minY; y < maxY; y++) {
+      const count = yDarkCounts.get(y) || 0;
+      const isInEdgeRegion = y < topEdge || y > bottomEdge;
+
+      if (count > artifactThreshold && isInEdgeRegion) {
+        if (artifactStart === null) {
+          artifactStart = y;
+        }
+      } else {
+        if (artifactStart !== null) {
+          // Add padding around artifact region
+          artifacts.push({ startY: artifactStart - 2, endY: y + 2 });
+          artifactStart = null;
+        }
+      }
+    }
+
+    if (artifactStart !== null) {
+      artifacts.push({ startY: artifactStart - 2, endY: maxY });
+    }
+
+    return artifacts;
+  }
+
+  /**
+   * Trace column with continuity awareness and artifact exclusion
+   * Prefers segments close to previous Y position and excludes artifact regions
+   */
+  private traceColumnWithContinuity(
+    x: number,
+    yMin: number,
+    yMax: number,
+    expectedBaselineY: number,
+    artifactRanges: Array<{ startY: number; endY: number }>,
+    prevY: number | null
+  ): { found: boolean; y: number; confidence: number } {
+    // Find all dark segments
+    const segments: Array<{ startY: number; endY: number; sumDarkness: number; maxDarkness: number; centerY: number }> = [];
+    let currentSegment: { startY: number; endY: number; sumDarkness: number; maxDarkness: number } | null = null;
+
+    for (let y = yMin; y < yMax; y++) {
+      const idx = (y * this.width + x) * 4;
+      const r = this.data[idx];
+      const g = this.data[idx + 1];
+      const b = this.data[idx + 2];
+      const darkness = this.calculateDarkness(r, g, b);
+
+      if (darkness > this.config.darknessThreshold) {
+        if (!currentSegment) {
+          currentSegment = { startY: y, endY: y, sumDarkness: darkness, maxDarkness: darkness };
+        } else {
+          currentSegment.endY = y;
+          currentSegment.sumDarkness += darkness;
+          currentSegment.maxDarkness = Math.max(currentSegment.maxDarkness, darkness);
+        }
+      } else {
+        if (currentSegment) {
+          const centerY = (currentSegment.startY + currentSegment.endY) / 2;
+          segments.push({ ...currentSegment, centerY });
+          currentSegment = null;
+        }
+      }
+    }
+
+    if (currentSegment) {
+      const centerY = (currentSegment.startY + currentSegment.endY) / 2;
+      segments.push({ ...currentSegment, centerY });
+    }
+
+    if (segments.length === 0) {
+      return { found: false, y: 0, confidence: 0 };
+    }
+
+    // Filter out segments that fall within artifact regions
+    const validSegments = segments.filter(seg => {
+      for (const artifact of artifactRanges) {
+        if (seg.centerY >= artifact.startY && seg.centerY <= artifact.endY) {
+          return false; // Segment is in artifact region
+        }
+      }
+      // Also reject very thick segments (>12 pixels)
+      const thickness = seg.endY - seg.startY + 1;
+      if (thickness > 12) {
+        return false;
+      }
+      return true;
+    });
+
+    if (validSegments.length === 0) {
+      return { found: false, y: 0, confidence: 0 };
+    }
+
+    // Choose best segment: prefer continuity with previous Y
+    let bestSegment = validSegments[0];
+    const panelCenterY = (yMin + yMax) / 2;
+
+    if (prevY !== null && validSegments.length > 1) {
+      // Pick segment closest to previous Y for continuity
+      let minDist = Math.abs(validSegments[0].centerY - prevY);
+      for (const seg of validSegments) {
+        const dist = Math.abs(seg.centerY - prevY);
+        if (dist < minDist) {
+          minDist = dist;
+          bestSegment = seg;
+        }
+      }
+    } else if (validSegments.length > 1) {
+      // No previous Y - pick segment closest to panel CENTER (not baseline)
+      // This avoids picking artifact lines near panel edges
+      // Baseline detection might be wrong, but panel center is geometric and reliable
+      let minDist = Math.abs(validSegments[0].centerY - panelCenterY);
+      for (const seg of validSegments) {
+        const dist = Math.abs(seg.centerY - panelCenterY);
+        if (dist < minDist) {
+          minDist = dist;
+          bestSegment = seg;
+        }
+      }
+    }
+
+    // Calculate weighted centroid of the best segment
+    let sumY = 0;
+    let sumWeight = 0;
+
+    for (let y = bestSegment.startY; y <= bestSegment.endY; y++) {
+      const idx = (y * this.width + x) * 4;
+      const r = this.data[idx];
+      const g = this.data[idx + 1];
+      const b = this.data[idx + 2];
+      const darkness = this.calculateDarkness(r, g, b);
+
+      if (darkness > this.config.darknessThreshold) {
+        const weight = darkness / 255;
+        sumY += y * weight;
+        sumWeight += weight;
+      }
+    }
+
+    if (sumWeight > 0.5) {
+      return {
+        found: true,
+        y: sumY / sumWeight,
+        confidence: Math.min(1, bestSegment.maxDarkness / 200),
+      };
+    }
+
+    return { found: false, y: 0, confidence: 0 };
+  }
+
+  /**
    * Calculate darkness value, optionally considering waveform color
    */
   private calculateDarkness(r: number, g: number, b: number): number {
+    // If strict color matching is enabled and waveform color is set
+    if (this.config.useStrictColorMatching) {
+      // Check if this pixel matches the waveform color
+      if (!this.isWaveformColor(r, g, b)) {
+        return 0; // Reject non-waveform pixels entirely
+      }
+    }
+
     // If waveform color is specified and not black, use color distance
     const wc = this.config.waveformColor;
     if (wc && (wc.r !== 0 || wc.g !== 0 || wc.b !== 0)) {
@@ -320,6 +540,64 @@ export class WaveformTracer {
 
     // Default: calculate darkness (0 = white, 255 = black)
     return 255 - (r + g + b) / 3;
+  }
+
+  /**
+   * Check if a pixel matches the waveform color (vs grid lines)
+   * This is critical for ECGs with colored waveforms on gray grids
+   */
+  private isWaveformColor(r: number, g: number, b: number): boolean {
+    const wc = this.config.waveformColor;
+    const tolerance = this.config.colorTolerance;
+
+    // Check if the pixel is close to the waveform color
+    const dr = Math.abs(r - wc.r);
+    const dg = Math.abs(g - wc.g);
+    const db = Math.abs(b - wc.b);
+    const distance = Math.sqrt(dr * dr + dg * dg + db * db);
+
+    if (distance <= tolerance * 2) {
+      return true; // Close enough to waveform color
+    }
+
+    // For non-black waveforms, also check if pixel is "colored" vs "gray"
+    // Gray pixels have R≈G≈B, colored pixels don't
+    if (wc.r !== wc.g || wc.g !== wc.b) {
+      // Waveform is colored (not grayscale)
+      // Reject gray pixels (grid lines are typically gray)
+      const isGray = Math.abs(r - g) < 30 && Math.abs(g - b) < 30 && Math.abs(r - b) < 30;
+      if (isGray) {
+        return false; // This is a gray grid line, not the colored waveform
+      }
+
+      // Check if the pixel has similar color characteristics to the waveform
+      // e.g., if waveform is blue (R<G<B), accept pixels where R<G<B
+      const wcIsBlue = wc.b > wc.r + 50 && wc.b > wc.g;
+      const pxIsBlue = b > r + 30 && b > g;
+      if (wcIsBlue && pxIsBlue) {
+        return true;
+      }
+
+      const wcIsRed = wc.r > wc.b + 50 && wc.r > wc.g;
+      const pxIsRed = r > b + 30 && r > g;
+      if (wcIsRed && pxIsRed) {
+        return true;
+      }
+
+      const wcIsGreen = wc.g > wc.r + 50 && wc.g > wc.b;
+      const pxIsGreen = g > r + 30 && g > b;
+      if (wcIsGreen && pxIsGreen) {
+        return true;
+      }
+    }
+
+    // For black waveform, accept any dark pixel
+    if (wc.r < 30 && wc.g < 30 && wc.b < 30) {
+      const brightness = (r + g + b) / 3;
+      return brightness < 100; // Accept dark pixels
+    }
+
+    return false;
   }
 
   /**

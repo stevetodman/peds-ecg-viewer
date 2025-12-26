@@ -469,6 +469,7 @@ export class ECGDigitizer {
 
   /**
    * Robust trace extraction with retry logic for failed panels
+   * PRIORITIZES AI tracePoints when available - these are ground truth
    */
   private robustTraceExtraction(
     imageData: ImageData,
@@ -477,16 +478,26 @@ export class ECGDigitizer {
   ): RawTrace[] {
     const traces: RawTrace[] = [];
 
-    // Try multiple darkness thresholds
-    const thresholds = [80, 60, 100, 40, 120];
-
     for (const panel of panels) {
       if (!panel.lead) continue;
 
+      // PRIORITY 1: Use AI-provided tracePoints if available
+      // These are ground truth from the AI's vision analysis
+      if (panel.tracePoints && panel.tracePoints.length >= 10) {
+        const aiTrace = this.createTraceFromAIPoints(panel);
+        if (aiTrace) {
+          traces.push(aiTrace);
+          continue; // Skip local CV - AI trace is authoritative
+        }
+      }
+
+      // PRIORITY 2: Fall back to local CV tracing if no AI points
       let bestTrace: RawTrace | null = null;
       let bestConfidence = 0;
 
-      // Try with default settings first
+      // Try multiple darkness thresholds
+      const thresholds = [80, 60, 100, 40, 120];
+
       for (const threshold of thresholds) {
         const tracer = new WaveformTracer(imageData, {
           waveformColor,
@@ -532,6 +543,65 @@ export class ECGDigitizer {
     }
 
     return traces;
+  }
+
+  /**
+   * Create a RawTrace from AI-provided tracePoints
+   * Interpolates between the sparse AI points to create a dense trace
+   */
+  private createTraceFromAIPoints(panel: PanelAnalysis): RawTrace | null {
+    if (!panel.tracePoints || panel.tracePoints.length < 2 || !panel.lead) {
+      return null;
+    }
+
+    const bounds = panel.bounds;
+    const tracePoints = panel.tracePoints.sort((a, b) => a.xPercent - b.xPercent);
+
+    // Generate dense trace by interpolating between AI points
+    const xPixels: number[] = [];
+    const yPixels: number[] = [];
+    const confidence: number[] = [];
+
+    // Sample at every pixel across the panel width
+    for (let x = bounds.x; x < bounds.x + bounds.width; x++) {
+      const xPercent = ((x - bounds.x) / bounds.width) * 100;
+
+      // Find surrounding AI points for interpolation
+      let leftPoint = tracePoints[0];
+      let rightPoint = tracePoints[tracePoints.length - 1];
+
+      for (let i = 0; i < tracePoints.length - 1; i++) {
+        if (tracePoints[i].xPercent <= xPercent && tracePoints[i + 1].xPercent >= xPercent) {
+          leftPoint = tracePoints[i];
+          rightPoint = tracePoints[i + 1];
+          break;
+        }
+      }
+
+      // Linear interpolation between points
+      let yPixel: number;
+      if (leftPoint.xPercent === rightPoint.xPercent) {
+        yPixel = leftPoint.yPixel;
+      } else {
+        const t = (xPercent - leftPoint.xPercent) / (rightPoint.xPercent - leftPoint.xPercent);
+        yPixel = leftPoint.yPixel + t * (rightPoint.yPixel - leftPoint.yPixel);
+      }
+
+      xPixels.push(x);
+      yPixels.push(yPixel);
+      confidence.push(0.95); // High confidence for AI-provided points
+    }
+
+    return {
+      panelId: panel.id,
+      lead: panel.lead,
+      xPixels,
+      yPixels,
+      confidence,
+      baselineY: panel.baselineY,
+      gaps: [],
+      method: 'ai_guided',
+    };
   }
 
   /**

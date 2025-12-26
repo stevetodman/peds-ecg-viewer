@@ -52,6 +52,52 @@ const PEDIATRIC_3x5_LAYOUT: LeadName[][] = [
 ];
 
 /**
+ * Repair common JSON issues from AI responses
+ */
+function repairJSON(jsonStr: string): string {
+  let result = jsonStr;
+
+  // Remove trailing commas before } or ]
+  result = result.replace(/,(\s*[}\]])/g, '$1');
+
+  // Fix incomplete arrays (missing closing bracket at end)
+  const openBrackets = (result.match(/\[/g) || []).length;
+  const closeBrackets = (result.match(/\]/g) || []).length;
+  if (openBrackets > closeBrackets) {
+    // Find where the JSON seems to be cut off and try to repair
+    // Look for patterns like incomplete array items
+    const lastBracketPos = result.lastIndexOf('[');
+    const textAfter = result.substring(lastBracketPos);
+
+    // If we're in the middle of an array, try to close it properly
+    if (textAfter.includes('{') && !textAfter.includes('}]')) {
+      // Check if the last item is incomplete
+      const lastOpenBrace = result.lastIndexOf('{');
+      const lastCloseBrace = result.lastIndexOf('}');
+
+      if (lastOpenBrace > lastCloseBrace) {
+        // Incomplete object in array - remove it and close
+        result = result.substring(0, lastOpenBrace).replace(/,\s*$/, '') + ']}';
+      } else {
+        // Just missing closing bracket
+        result = result.replace(/,\s*$/, '') + ']';
+      }
+    }
+  }
+
+  // Fix incomplete objects
+  const openBraces = (result.match(/\{/g) || []).length;
+  const closeBraces = (result.match(/\}/g) || []).length;
+  if (openBraces > closeBraces) {
+    for (let i = 0; i < openBraces - closeBraces; i++) {
+      result = result.replace(/,\s*$/, '') + '}';
+    }
+  }
+
+  return result;
+}
+
+/**
  * Parse AI response text into ECGImageAnalysis
  */
 export function parseAIResponse(responseText: string): ECGImageAnalysis {
@@ -70,12 +116,17 @@ export function parseAIResponse(responseText: string): ECGImageAnalysis {
     jsonStr = jsonObjectMatch[0];
   }
 
+  // Clean up common JSON issues from AI responses
+  jsonStr = repairJSON(jsonStr);
+
   // Parse JSON
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(jsonStr);
   } catch (e) {
-    throw new Error(`Failed to parse AI response as JSON: ${e}`);
+    // Log a portion of the response for debugging
+    const preview = jsonStr.length > 500 ? jsonStr.substring(0, 500) + '...' : jsonStr;
+    throw new Error(`Failed to parse AI response as JSON: ${e}\nPreview: ${preview}`);
   }
 
   // Parse components
@@ -472,7 +523,32 @@ function parsePanel(panel: unknown, idx: number): PanelAnalysis {
     isRhythmStrip: Boolean(p?.isRhythmStrip ?? false),
     timeRange: parseTimeRange(p?.timeRange),
     labelConfidence: parseConfidence(p?.labelConfidence),
+    // AI-provided waveform trace data
+    tracePoints: parseTracePoints(p?.tracePoints),
+    waveformYMin: parseNumber(p?.waveformYMin),
+    waveformYMax: parseNumber(p?.waveformYMax),
   };
+}
+
+/**
+ * Parse trace points array
+ */
+function parseTracePoints(tracePoints: unknown): Array<{ xPercent: number; yPixel: number }> | undefined {
+  if (!Array.isArray(tracePoints)) return undefined;
+
+  const result: Array<{ xPercent: number; yPixel: number }> = [];
+
+  for (const pt of tracePoints) {
+    const p = pt as Record<string, unknown> | undefined;
+    const xPercent = parseNumber(p?.xPercent);
+    const yPixel = parseNumber(p?.yPixel);
+
+    if (xPercent !== undefined && yPixel !== undefined) {
+      result.push({ xPercent, yPixel });
+    }
+  }
+
+  return result.length > 0 ? result : undefined;
 }
 
 /**

@@ -261,6 +261,15 @@ export interface PanelAnalysis {
 
   /** Label confidence (0-1) */
   labelConfidence: number;
+
+  /** AI-provided trace points along the waveform (11 points at 0%, 10%, 20%... 100%) */
+  tracePoints?: Array<{ xPercent: number; yPixel: number }>;
+
+  /** Minimum Y pixel the waveform reaches (e.g., R wave peak) */
+  waveformYMin?: number;
+
+  /** Maximum Y pixel the waveform reaches (e.g., S wave trough) */
+  waveformYMax?: number;
 }
 
 /**
