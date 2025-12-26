@@ -323,6 +323,40 @@ Tested on ECGs from multiple external sources:
 
 ---
 
+## PNG Digitizer Improvements
+
+### Panel Detection Consistency Fix
+**Date:** 2025-12-25
+
+**Problem:** AI vision model returns non-deterministic panel bounds on each run. When bounds are incorrect (e.g., panel III at Y=377 on 453px image), baseline detection operates on garbage data, breaking Einthoven's law validation (II = I + III).
+
+**Root Cause Investigation:**
+- Ran multiple debug scripts to isolate the issue
+- Found baseline position variance of ~41% across leads (I: 58.7%, II: 48.4%, III: 17.4% from panel top)
+- Traced to AI returning inconsistent Y positions for panel rows
+
+**Solution:** Enhanced `clampPanelBounds()` in response-parser.ts to detect and fix:
+- Panels extending beyond image boundaries
+- Inconsistent Y positions within rows (>30% variance triggers correction)
+- Inconsistent X positions within columns (>30% variance)
+- Inconsistent panel heights (>50% variance from median)
+
+When inconsistencies detected, falls back to even grid distribution based on row/col assignments.
+
+**Result:** Baseline position variance reduced from ~41% to ~9%
+
+**Remaining Issues:**
+- Time alignment between leads still imperfect (R-peaks at different trace indices)
+- AI variability requires multiple runs for best results (robust digitizer handles this)
+
+**Files:**
+- `src/signal/loader/png-digitizer/ai/response-parser.ts` - Enhanced validation
+- `scripts/debug-einthoven.ts` - Cross-lead validation debugging
+- `scripts/debug-ai-panels.ts` - AI detection output analysis
+- `scripts/deep-debug.ts` - Time alignment investigation
+
+---
+
 ## References
 
 - Boston (2019): AUROC 0.93 on "any abnormality" with 583k ECGs
