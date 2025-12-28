@@ -205,21 +205,21 @@ Sensitivity showed a striking age-dependent pattern, highest in neonates (72.9%)
 
 *Note: The test dataset has artificial 75% swap prevalence (3 swaps per original ECG), yielding apparent PPV of 97%; clinical PPV values above are calculated using Bayes' theorem at realistic prevalence rates.*
 
-At realistic prevalence (2%), approximately 5 of 6 positive flags would be false positives (PPV ~17%), limiting standalone screening utility. PPV reaches 50% only at approximately 10% prevalence—a level that might occur in settings with undertrained staff or high-volume ECG acquisition. The high specificity (99.1%) ensures relatively few false alarms even at low prevalence.
+At realistic prevalence (2%), approximately 5 of 6 positive flags would be false positives (PPV ~17%), limiting standalone screening utility. PPV reaches 50% only at approximately 9% prevalence—a level that might occur in settings with undertrained staff or high-volume ECG acquisition. The high specificity (99.1%) ensures relatively few false alarms even at low prevalence.
 
 ### Threshold Analysis
 
-**Table 6. Performance Across Detection Thresholds (Overall)**
+**Table 6. Performance Across Detection Thresholds (Overall, N=12,334 ECGs)**
 
 | Threshold | Sensitivity | Specificity | Youden Index |
 |-----------|-------------|-------------|--------------|
-| 0.3 | 32.1% | 91.9% | 0.24 |
-| 0.4 | 26.5% | 95.6% | 0.22 |
-| **0.5 (default)** | **20.8%** | **97.8%** | **0.19** |
-| 0.6 | 15.2% | 99.3% | 0.15 |
-| 0.7 | 11.0% | 100% | 0.11 |
+| 0.3 | 77.2% | 93.4% | 0.71 |
+| 0.4 | 35.7% | 93.6% | 0.29 |
+| **0.5 (default)** | **9.1%** | **99.0%** | **0.08** |
+| 0.6 | 8.5% | 100.0% | 0.08 |
+| 0.7 | 0.0% | 100.0% | 0.00 |
 
-Lowering the threshold to 0.3 would increase sensitivity to 32% but reduce specificity to 91%, generating approximately twice as many false positives. No threshold achieved sensitivity >35% while maintaining specificity >90%.
+At the default threshold (0.5), results match Table 4: sensitivity 9.1%, specificity 99.0%. Lowering the threshold to 0.3 would substantially increase sensitivity to 77% but reduce specificity to 93%, generating approximately 8× as many false positives (814 vs 109). The steep drop in sensitivity between thresholds 0.3 and 0.5 indicates that most detectable swaps produce marginal evidence scores (0.3–0.5 range), while the small sensitivity drop from 0.5 to 0.6 (9.1%→8.5%) suggests that swaps detected at threshold 0.5 generally produce robust evidence well above threshold.
 
 **Figure 1** shows threshold analysis stratified by age group. Neonates maintained higher sensitivity across all thresholds, while adolescents showed minimal sensitivity (<10%) regardless of threshold, suggesting fundamental detectability differences rather than suboptimal threshold selection.
 
@@ -236,9 +236,9 @@ An unexpected finding was that adolescents—whose ECG patterns most closely res
 | Toddler | 0.48 ± 0.19 | 19.2% | — |
 | Child | 0.52 ± 0.22 | 9.2% | — |
 | Adolescent | 0.58 ± 0.24 | 5.4% | — |
-| | | | r = −0.97, p = 0.006 |
+| | | | r = −0.96, p = 0.008 |
 
-Lead I amplitude increased progressively with age, and this correlated strongly and inversely with sensitivity (r = −0.97, p = 0.006). With the larger dataset, this ecological correlation (based on 5 group means) is more precisely estimated. The relationship suggests that the algorithm's Lead I inversion detection—which triggers on mean amplitude < 0 with specific morphology criteria—may be calibrated for lower-amplitude signals. Higher-amplitude Lead I in older children may produce post-swap patterns that fail the morphology criterion despite meeting the polarity criterion.
+Lead I amplitude increased progressively with age, and this correlated strongly and inversely with sensitivity (r = −0.96, p = 0.008). Note: This ecological correlation is based on n=5 age group means; individual-level correlation may differ. The relationship suggests that the algorithm's Lead I inversion detection—which triggers on mean amplitude < 0 with specific morphology criteria—may be calibrated for lower-amplitude signals. Higher-amplitude Lead I in older children may produce post-swap patterns that fail the morphology criterion despite meeting the polarity criterion.
 
 **Alternative explanation:** The discrepancy between adult study results (93–99% sensitivity) and our adolescent results (5.4%) may reflect methodological differences rather than algorithm performance. Adult studies used confirmed real-world swaps, which may include artifacts that make errors more conspicuous. Our mathematical simulation creates "clean" swaps that may be paradoxically harder to detect.
 
@@ -319,7 +319,7 @@ This simulation-based validation study of 12,334 pediatric ECGs yielded three pr
 
 The finding that adolescents (5.4% sensitivity) performed far worse than expected from adult studies (93–99% with real swaps) requires explanation. We identified two contributing factors:
 
-**Lead I amplitude effect:** Sensitivity correlated inversely with Lead I amplitude (r = −0.97, p = 0.006). The algorithm's Lead I inversion criteria appear calibrated for lower-amplitude signals typical of adult ECGs in the original development studies. Pediatric ECGs—particularly in older children—may have higher Lead I amplitudes that place post-swap values outside detection parameters.
+**Lead I amplitude effect:** Sensitivity correlated inversely with Lead I amplitude (r = −0.96, p = 0.008). The algorithm's Lead I inversion criteria appear calibrated for lower-amplitude signals typical of adult ECGs in the original development studies. Pediatric ECGs—particularly in older children—may have higher Lead I amplitudes that place post-swap values outside detection parameters.
 
 **Simulation vs. real-world methodology:** Adult studies validated on confirmed real-world electrode errors, which may include signal artifacts that paradoxically aid detection. Our mathematical simulation creates idealized swaps that may be harder to detect. This methodological difference may explain much of the sensitivity discrepancy.
 

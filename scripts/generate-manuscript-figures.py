@@ -67,33 +67,42 @@ def get_metrics_by_age():
     return results
 
 
-def figure1_threshold_analysis():
-    """Figure 1: Threshold analysis by age group (simulated)."""
-    # We don't have actual threshold data in the results, so we'll create representative curves
-    # based on the known sensitivity at threshold 0.5
+def get_threshold_metrics_by_age(threshold):
+    """Calculate sensitivity and specificity at a given threshold by age group."""
+    results = {}
+    for group in AGE_GROUPS:
+        # Sensitivity: swapped ECGs with rawScore >= threshold
+        swap_group = [d for d in swapped if d["ageGroup"] == group]
+        n_swap = len(swap_group)
+        tp = len([d for d in swap_group if d["adultRawScore"] >= threshold])
+        sens = tp / n_swap if n_swap > 0 else 0
 
+        # Specificity: original ECGs with limbScore < threshold
+        orig_group = [d for d in originals if d["ageGroup"] == group]
+        n_orig = len(orig_group)
+        fp = len([d for d in orig_group if d["adultLimbScore"] >= threshold])
+        spec = (n_orig - fp) / n_orig if n_orig > 0 else 0
+
+        results[group] = {"sensitivity": sens, "specificity": spec, "n_swap": n_swap, "n_orig": n_orig}
+    return results
+
+
+def figure1_threshold_analysis():
+    """Figure 1: Threshold analysis by age group using actual rawScore data."""
     fig, ax = plt.subplots(figsize=(10, 7))
 
-    metrics = get_metrics_by_age()
     colors = ['#d62728', '#ff7f0e', '#2ca02c', '#1f77b4', '#9467bd']
-
-    # Simulated threshold curves based on actual sensitivity at 0.5
     thresholds = np.array([0.3, 0.4, 0.5, 0.6, 0.7, 0.8])
 
+    # Calculate actual sensitivity at each threshold for each age group
     for i, (group, color) in enumerate(zip(AGE_GROUPS, colors)):
-        base_sens = metrics[group]["sensitivity"]
-        # Create plausible sensitivity curve (higher at low threshold, lower at high)
-        # Scale factor varies by age group
-        if "Neonate" in group:
-            sens_curve = base_sens * np.array([1.15, 1.08, 1.0, 0.85, 0.70, 0.50])
-        elif "Infant" in group:
-            sens_curve = base_sens * np.array([1.20, 1.10, 1.0, 0.80, 0.60, 0.40])
-        else:
-            sens_curve = base_sens * np.array([1.30, 1.15, 1.0, 0.75, 0.55, 0.35])
+        sens_curve = []
+        for thresh in thresholds:
+            metrics = get_threshold_metrics_by_age(thresh)
+            sens_curve.append(metrics[group]["sensitivity"] * 100)
 
-        sens_curve = np.clip(sens_curve, 0, 1)
         label = group.split(" (")[0]
-        ax.plot(thresholds, sens_curve * 100, 'o-', color=color, label=label, linewidth=2, markersize=8)
+        ax.plot(thresholds, sens_curve, 'o-', color=color, label=label, linewidth=2, markersize=8)
 
     ax.set_xlabel("Detection Threshold", fontsize=12)
     ax.set_ylabel("Sensitivity (%)", fontsize=12)
@@ -102,13 +111,14 @@ def figure1_threshold_analysis():
     ax.set_xlim(0.25, 0.85)
     ax.set_ylim(0, 100)
     ax.grid(True, alpha=0.3)
-    ax.axvline(x=0.5, color='gray', linestyle='--', alpha=0.5, label='Default threshold')
+    ax.axvline(x=0.5, color='gray', linestyle='--', alpha=0.5)
+    ax.text(0.51, 95, 'Default\nthreshold', fontsize=9, color='gray', va='top')
 
     plt.tight_layout()
     plt.savefig(OUTPUT_DIR / "figure1_threshold_analysis.png", dpi=150, bbox_inches='tight')
     plt.savefig(OUTPUT_DIR / "figure1_threshold_analysis.svg", bbox_inches='tight')
     plt.close()
-    print("Generated Figure 1: Threshold Analysis")
+    print("Generated Figure 1: Threshold Analysis (using actual rawScore data)")
 
 
 def figure2_sensitivity_specificity():
@@ -283,7 +293,7 @@ SENSITIVITY: Age-dependent pattern
 
 CLINICAL PPV at 2% prevalence: ~17%
 • 5 of 6 positive flags are false positives
-• PPV reaches 50% only at ~10% prevalence
+• PPV reaches 50% only at ~9% prevalence
 
 CONCLUSION: Safe for deployment (high specificity)
 but limited as standalone screening tool
