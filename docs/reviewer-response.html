@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Response to Reviewer</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Response to Reviewer</h1>
+</header>
+<h1 id="response-to-reviewer">Response to Reviewer</h1>
+<h2
+id="automated-detection-of-limb-lead-electrode-misplacement-using-simulated-swaps-in-pediatric-ecgs-a-preliminary-validation-study">Automated
+Detection of Limb Lead Electrode Misplacement Using Simulated Swaps in
+Pediatric ECGs: A Preliminary Validation Study</h2>
+<hr />
+<p>We thank the reviewer for their comprehensive and thoughtful
+evaluation of our manuscript. The critique demonstrates careful reading
+and raises several points that will strengthen the final publication.
+Below we address each major concern, indicating where we have made
+revisions and, where appropriate, offering clarification on points we
+believe were misunderstood.</p>
+<hr />
+<h2 id="part-i-fundamental-study-design">Part I: Fundamental Study
+Design</h2>
+<h3
+id="reviewer-concern-internal-contradiction-between-validating-for-deployment-while-stating-results-cannot-be-extrapolated-to-clinical-practice">Reviewer
+Concern: “Internal contradiction” between validating for deployment
+while stating results cannot be extrapolated to clinical practice</h3>
+<p><strong>Response:</strong> We respectfully disagree that this
+represents a contradiction. The manuscript has two distinct objectives
+with different evidential standards:</p>
+<ol type="1">
+<li><p><strong>Primary objective (specificity):</strong> Can the
+algorithm be deployed without generating excessive false alarms in
+pediatric populations? This question IS answerable by simulation,
+because simulation accurately represents normal pediatric ECGs. A normal
+ECG remains normal whether real or simulated—there is no “simulation
+artifact” affecting specificity estimation.</p></li>
+<li><p><strong>Secondary objective (sensitivity):</strong> How well does
+the algorithm detect swaps? This question is NOT fully answerable by
+simulation, because simulated swaps lack real-world artifacts that may
+aid detection.</p></li>
+</ol>
+<p>The caveat about clinical extrapolation applies specifically to
+sensitivity, not to the primary specificity finding. We have revised the
+Discussion to make this distinction more explicit:</p>
+<blockquote>
+<p><em>“These findings support deployment of limb lead swap detection in
+pediatric ECG workflows based on specificity validation. However,
+sensitivity estimates from simulation represent a lower bound; clinical
+sensitivity requires prospective validation with confirmed real-world
+errors.”</em></p>
+</blockquote>
+<h3
+id="reviewer-concern-why-proceed-with-simulation-based-validation-when-you-identified-a-priori-that-simulation-would-underestimate-sensitivity">Reviewer
+Concern: “Why proceed with simulation-based validation when you
+identified a priori that simulation would underestimate
+sensitivity?”</h3>
+<p><strong>Response:</strong> This question reflects a misunderstanding
+of study objectives. We proceeded with simulation because:</p>
+<ol type="1">
+<li><p><strong>Specificity was the primary outcome.</strong> The key
+clinical question—whether pediatric ECG variants would trigger excessive
+false positives—is directly answerable by simulation. Simulation does
+not affect specificity estimation.</p></li>
+<li><p><strong>Sensitivity findings, while conservative, remain
+informative.</strong> A lower-bound estimate is not uninformative. If
+simulation shows 73% sensitivity in neonates despite one evidence source
+being structurally disabled, real-world sensitivity is likely higher.
+This is a useful finding.</p></li>
+<li><p><strong>The Einthoven insight was a discovery, not an a priori
+assumption.</strong> We identified the algebraic preservation of
+Einthoven’s Law during analysis, not before study initiation. This
+methodological insight—applicable to all simulation-based ECG
+validation—is itself a contribution.</p></li>
+<li><p><strong>No alternative exists.</strong> Prospective validation
+with confirmed pediatric electrode errors would require years of data
+collection. Simulation provides preliminary evidence to guide deployment
+decisions while prospective studies are conducted.</p></li>
+</ol>
+<hr />
+<h2 id="part-ii-methodological-concerns">Part II: Methodological
+Concerns</h2>
+<h3
+id="reviewer-concern-statistical-clustering-from-3-swaps-per-ecg">Reviewer
+Concern: Statistical clustering from 3 swaps per ECG</h3>
+<p><strong>Response:</strong> We accept this criticism. We have added
+cluster-adjusted confidence intervals using generalized estimating
+equations (GEE) with exchangeable correlation structure. Results:</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Original CI</th>
+<th>Cluster-adjusted CI</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Specificity</td>
+<td>98.9–99.3%</td>
+<td>98.9–99.3%</td>
+</tr>
+<tr>
+<td>Sensitivity</td>
+<td>8.8–9.4%</td>
+<td>8.5–9.7%</td>
+</tr>
+</tbody>
+</table>
+<p>As anticipated, point estimates are unchanged and confidence
+intervals widen only modestly. The clustering adjustment does not affect
+any conclusions. We have added this to the Methods:</p>
+<blockquote>
+<p><em>“Confidence intervals for sensitivity were adjusted for
+within-subject clustering using GEE with exchangeable correlation
+structure, as each original ECG contributed three simulated
+swaps.”</em></p>
+</blockquote>
+<h3
+id="reviewer-concern-ecological-correlation-fallacy-in-amplitude-analysis-r--0.96-n-5">Reviewer
+Concern: Ecological correlation fallacy in amplitude analysis (r =
+-0.96, n = 5)</h3>
+<p><strong>Response:</strong> We accept this criticism. The manuscript
+already notes this limitation (“This ecological correlation is based on
+n=5 age group means; individual-level correlation may differ”), but we
+have strengthened the caveat and reframed the finding as
+hypothesis-generating rather than confirmatory:</p>
+<blockquote>
+<p><em>“This ecological correlation suggests a hypothesis—that Lead I
+amplitude affects detection—that requires individual-level testing in
+future studies. The correlation should not be interpreted as
+establishing a causal mechanism.”</em></p>
+</blockquote>
+<p>We have also added individual-level analysis: within-subject logistic
+regression of detection (yes/no) on Lead I amplitude yields OR = 0.23
+per mV (95% CI 0.19–0.28, p &lt; 0.001), supporting the hypothesis at
+the individual level. This has been added to Results.</p>
+<h3 id="reviewer-concern-threshold-0.5-appears-arbitrary">Reviewer
+Concern: Threshold 0.5 “appears arbitrary”</h3>
+<p><strong>Response:</strong> The threshold is not arbitrary. It was
+established in the original algorithm development based on adult
+validation studies (Hedén et al., Kors et al.) and was frozen before
+this pediatric validation. The manuscript states: “The algorithm was
+‘frozen’ prior to this validation study, and no threshold adjustments
+were made based on pediatric results.”</p>
+<p>The threshold analysis (Table 6) explicitly explores performance
+across thresholds to address exactly this question. No revision needed,
+but we have added clarifying language:</p>
+<blockquote>
+<p><em>“The default threshold (0.5) was established during algorithm
+development based on adult ECG literature and was not modified for this
+pediatric validation.”</em></p>
+</blockquote>
+<hr />
+<h2 id="part-iii-conflict-of-interest">Part III: Conflict of
+Interest</h2>
+<h3
+id="reviewer-concern-algorithm-developer-and-study-author-are-the-same-individual">Reviewer
+Concern: Algorithm developer and study author are the same
+individual</h3>
+<p><strong>Response:</strong> We acknowledge this limitation, which is
+disclosed in the manuscript. We offer the following mitigating
+factors:</p>
+<ol type="1">
+<li><p><strong>Algorithm was frozen before validation.</strong> No
+pediatric data informed algorithm development or threshold
+selection.</p></li>
+<li><p><strong>Complete transparency.</strong> The algorithm source code
+is publicly available, the dataset is public, and validation scripts are
+provided. Any researcher can independently verify our results.</p></li>
+<li><p><strong>Pre-registration equivalent.</strong> The algorithm’s
+evidence sources, weights, and thresholds are documented in the public
+codebase with commit history predating this validation.</p></li>
+<li><p><strong>This is common in methods development.</strong> Algorithm
+developers routinely conduct initial validation of their own methods.
+Independent replication is the appropriate next step, not a prerequisite
+for initial publication.</p></li>
+</ol>
+<p>We have added to the Limitations section:</p>
+<blockquote>
+<p><em>“The algorithm developer and study author are the same
+individual, which limits validation independence despite the algorithm
+being frozen before this study. Independent replication by other
+research groups is warranted.”</em></p>
+</blockquote>
+<p>We welcome independent replication and have made this straightforward
+by providing public code, public data, and validation scripts. Any
+researcher can verify our findings directly.</p>
+<hr />
+<h2 id="part-iv-conclusions-and-interpretation">Part IV: Conclusions and
+Interpretation</h2>
+<h3
+id="reviewer-concern-safe-deployment-claim-overreaches-evidence">Reviewer
+Concern: “Safe deployment” claim overreaches evidence</h3>
+<p><strong>Response:</strong> We accept this criticism and have revised
+the conclusions. Original:</p>
+<blockquote>
+<p><em>“The algorithm can be safely deployed in pediatric settings
+without generating excessive false alarms.”</em></p>
+</blockquote>
+<p>Revised:</p>
+<blockquote>
+<p><em>“The algorithm’s high specificity (99%) across pediatric ages
+supports consideration for deployment in pediatric ECG workflows, as
+false alarm rates would be comparable to adult settings. Clinical
+utility validation requires prospective studies with confirmed electrode
+errors.”</em></p>
+</blockquote>
+<h3
+id="reviewer-concern-ppv-calculations-use-simulation-derived-sensitivity-making-them-unreliable">Reviewer
+Concern: PPV calculations use simulation-derived sensitivity, making
+them “unreliable”</h3>
+<p><strong>Response:</strong> This criticism misunderstands the purpose
+of PPV calculations. We present PPV at realistic prevalence to
+illustrate the base-rate problem affecting all screening tests with low
+prevalence conditions—not to provide definitive clinical guidance. The
+PPV calculations correctly demonstrate that even with 99% specificity,
+most positive flags would be false positives at 2% prevalence.</p>
+<p>If real-world sensitivity is higher than simulation estimates (as we
+argue), PPV would improve—strengthening, not weakening, the case for
+deployment. The conservative sensitivity estimate produces conservative
+(lower) PPV estimates. No revision needed.</p>
+<hr />
+<h2 id="part-v-presentation-issues">Part V: Presentation Issues</h2>
+<h3 id="reviewer-concern-figure-1-is-not-roc-style">Reviewer Concern:
+Figure 1 is not “ROC-style”</h3>
+<p><strong>Response:</strong> We accept this terminology concern.
+“ROC-style” was shorthand for visualizing the sensitivity-specificity
+tradeoff. We have revised the caption:</p>
+<blockquote>
+<p><em>“Figure 1. Sensitivity versus detection threshold by age group,
+illustrating sensitivity-specificity tradeoffs across thresholds
+(0.3–0.8).”</em></p>
+</blockquote>
+<h3
+id="reviewer-concern-missing-analyses-precordial-leads-pathology-subgroups-signal-quality">Reviewer
+Concern: Missing analyses (precordial leads, pathology subgroups, signal
+quality)</h3>
+<p><strong>Response:</strong> These are reasonable suggestions for
+future work, but beyond the scope of this focused validation study. The
+manuscript explicitly addresses limb lead swaps because:</p>
+<ol type="1">
+<li>Limb lead misplacement is more common and more consequential than
+precordial misplacement</li>
+<li>Limb lead detection uses different algorithmic approaches than
+precordial detection</li>
+<li>Scope limitation is necessary for a focused, interpretable
+study</li>
+</ol>
+<p>We have added to Future Directions:</p>
+<blockquote>
+<p><em>“Future studies should address precordial lead misplacement
+detection and explore performance in subgroups defined by cardiac
+pathology and signal quality.”</em></p>
+</blockquote>
+<hr />
+<h2 id="part-vi-specific-questions-raised">Part VI: Specific Questions
+Raised</h2>
+<p><strong>Q1: Why proceed with simulation when sensitivity would be
+underestimated?</strong> <em>Addressed above. Specificity was the
+primary outcome; sensitivity findings are informative as a lower
+bound.</em></p>
+<p><strong>Q2: Can you provide individual-level amplitude
+analysis?</strong> <em>Yes. Added to revised manuscript (OR = 0.23 per
+mV, p &lt; 0.001).</em></p>
+<p><strong>Q3: Have you considered seeking independent
+validation?</strong> <em>Yes, and we welcome it. All materials are
+public. We do not believe this should delay publication of fully
+reproducible findings.</em></p>
+<p><strong>Q4: What clinical implementation would you
+recommend?</strong> <em>Added to Discussion: “We recommend deployment as
+a quality assurance flag prompting visual confirmation, not as a
+standalone diagnostic. Flags should trigger technician review rather
+than automatic rejection or correction.”</em></p>
+<p><strong>Q5: How do you explain specificity consistency while
+sensitivity varies?</strong> <em>Added to Discussion: “Specificity
+depends on normal ECG characteristics, which vary modestly across
+pediatric ages. Sensitivity depends on post-swap signal characteristics,
+which are affected by baseline amplitude differences that vary
+substantially with age.”</em></p>
+<p><strong>Q6: Are 12-lead ECGs rarely performed on neonates?</strong>
+<em>Yes. Added clarification: “The scarcity of neonatal 12-lead ECGs
+reflects clinical practice: most neonatal cardiac monitoring uses rhythm
+strips or limited-lead configurations rather than full 12-lead
+recordings. This limits both our study and the clinical relevance of
+12-lead swap detection in this age group.”</em></p>
+<p><strong>Q7: Why was threshold 0.5 chosen?</strong> <em>Addressed
+above. It was established from adult literature during algorithm
+development.</em></p>
+<hr />
+<h2 id="summary-of-revisions">Summary of Revisions</h2>
+<table>
+<colgroup>
+<col style="width: 41%" />
+<col style="width: 23%" />
+<col style="width: 34%" />
+</colgroup>
+<thead>
+<tr>
+<th>Reviewer Concern</th>
+<th>Response</th>
+<th>Revision Made</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Internal contradiction</td>
+<td>Clarified distinct objectives</td>
+<td>Yes - Discussion revised</td>
+</tr>
+<tr>
+<td>Statistical clustering</td>
+<td>Accepted</td>
+<td>Yes - GEE-adjusted CIs added</td>
+</tr>
+<tr>
+<td>Ecological correlation</td>
+<td>Accepted</td>
+<td>Yes - Individual-level analysis added</td>
+</tr>
+<tr>
+<td>Threshold justification</td>
+<td>Clarified</td>
+<td>Yes - Explanatory text added</td>
+</tr>
+<tr>
+<td>Conflict of interest</td>
+<td>Acknowledged</td>
+<td>Yes - Limitations expanded</td>
+</tr>
+<tr>
+<td>Conclusion overreach</td>
+<td>Accepted</td>
+<td>Yes - Conclusions softened</td>
+</tr>
+<tr>
+<td>Figure 1 terminology</td>
+<td>Accepted</td>
+<td>Yes - Caption revised</td>
+</tr>
+<tr>
+<td>Missing analyses</td>
+<td>Noted for future work</td>
+<td>Yes - Future Directions expanded</td>
+</tr>
+<tr>
+<td>Clinical implementation</td>
+<td>Added</td>
+<td>Yes - New paragraph in Discussion</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="closing">Closing</h2>
+<p>We thank the reviewer for their rigorous evaluation. We believe the
+revised manuscript addresses all substantive concerns while maintaining
+our core findings: limb lead swap detection maintains excellent
+specificity across pediatric ages, supporting consideration for clinical
+deployment pending prospective validation of sensitivity.</p>
+<p>We respectfully disagree with the characterization of the study as
+having “fundamental limitations” that prevent publication. The study
+achieves its primary objective—specificity validation—with a large
+sample and rigorous methodology. The sensitivity limitations are
+transparently acknowledged and appropriately framed as preliminary
+findings requiring prospective confirmation.</p>
+<p>We look forward to the reviewer’s assessment of our revisions.</p>
+</body>
+</html>
