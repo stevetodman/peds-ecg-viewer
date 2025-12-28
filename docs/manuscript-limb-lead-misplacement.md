@@ -4,7 +4,7 @@
 
 ## Abstract
 
-**Background:** Limb electrode misplacement occurs in 0.4–4% of ECGs and can lead to misdiagnosis. Automated detection algorithms have been validated only in adults. Whether these algorithms maintain acceptable specificity in pediatric populations—where normal ECG variants like neonatal right-axis deviation might trigger false positives—is unknown.
+**Background:** Limb electrode misplacement occurs in 0.4–4% of ECGs and can lead to misdiagnosis. Automated detection algorithms have been validated only in adults. Whether these algorithms maintain high specificity (≥95%) in pediatric populations—where normal ECG variants like neonatal right-axis deviation might trigger false positives—is unknown.
 
 **Objective:** To validate limb lead swap detection using mathematically simulated electrode errors across the full spectrum of pediatric age groups.
 
@@ -59,7 +59,7 @@ To our knowledge, no prior study has systematically validated limb lead swap det
 
 ### Study Objective
 
-The primary objective was to determine whether automated limb lead swap detection maintains acceptable specificity across pediatric age groups when tested with simulated electrode errors. Secondary objectives included characterizing sensitivity across age groups and exploring factors that might explain age-related performance differences.
+The primary objective was to determine whether automated limb lead swap detection maintains high specificity (≥95%, comparable to adult studies) across pediatric age groups when tested with simulated electrode errors. Secondary objectives included characterizing sensitivity across age groups and exploring factors that might explain age-related performance differences.
 
 ---
 
@@ -84,7 +84,7 @@ Inclusion criteria were: (1) standard 12-lead ECG, (2) technically adequate reco
 | Neonate | 0–30 days | 16 | 0.1% |
 | Infant | 1–12 months | 263 | 2.1% |
 | Toddler | 1 to <3 years | 815 | 6.6% |
-| Child | 3–12 years | 7,249 | 58.8% |
+| Child | 3 to <12 years | 7,249 | 58.8% |
 | Adolescent | 12–14 years | 3,991 | 32.4% |
 | **Total** | | **12,334** | **100%** |
 
@@ -92,17 +92,17 @@ The age distribution reflects clinical practice: neonatal 12-lead ECGs are scarc
 
 ### Baseline ECG Characteristics
 
-**Table 2. Baseline ECG Parameters by Age Group**
+**Table 2. Baseline ECG Parameters by Age Group (Stratified Random Sample)**
 
 | Age Group | N | Mean Axis (°) | Heart Rate (bpm) | QRS Duration (ms) | Lead I Amplitude (mV) |
 |-----------|---|---------------|------------------|-------------------|----------------------|
 | Neonate | 16 | +128 ± 24 | 142 ± 18 | 68 ± 8 | 0.31 ± 0.18 |
-| Infant | 30 | +82 ± 31 | 128 ± 22 | 72 ± 10 | 0.42 ± 0.21 |
-| Toddler | 30 | +68 ± 28 | 108 ± 18 | 76 ± 9 | 0.48 ± 0.19 |
-| Child | 30 | +62 ± 25 | 88 ± 15 | 82 ± 11 | 0.52 ± 0.22 |
-| Adolescent | 30 | +58 ± 22 | 76 ± 12 | 88 ± 12 | 0.58 ± 0.24 |
+| Infant | 30* | +82 ± 31 | 128 ± 22 | 72 ± 10 | 0.42 ± 0.21 |
+| Toddler | 30* | +68 ± 28 | 108 ± 18 | 76 ± 9 | 0.48 ± 0.19 |
+| Child | 30* | +62 ± 25 | 88 ± 15 | 82 ± 11 | 0.52 ± 0.22 |
+| Adolescent | 30* | +58 ± 22 | 76 ± 12 | 88 ± 12 | 0.58 ± 0.24 |
 
-Values are mean ± SD. Note the progressive increase in Lead I amplitude with age (0.31→0.58 mV), which may affect detection sensitivity (see Discussion).
+Values are mean ± SD. *Stratified random sample for parameter estimation; detection performance was evaluated on full cohort (see Table 1). Note the progressive increase in Lead I amplitude with age (0.31→0.58 mV), which may affect detection sensitivity (see Discussion).
 
 ### Swap Simulation
 
@@ -118,7 +118,7 @@ For each original ECG, we mathematically simulated three limb lead swap types, c
 
 ### Detection Algorithm
 
-The algorithm was developed independently as part of an open-source ECG library, based on published adult detection criteria.^9,10^ No pediatric data informed algorithm development. This represents true external validation.
+The algorithm was developed independently as part of an open-source ECG library, based on published adult detection criteria.^9,10^ No pediatric data informed algorithm development. The algorithm was "frozen" prior to this validation study, and no threshold adjustments were made based on pediatric results. However, the algorithm developer and study author are the same individual, which limits independence of validation.
 
 **Evidence Sources and Scoring:**
 
@@ -198,11 +198,12 @@ Sensitivity showed a striking age-dependent pattern, highest in neonates (72.9%)
 
 | Prevalence | True Swaps/1000 | Expected TP | Expected FP | Clinical PPV | Clinical NPV |
 |------------|-----------------|-------------|-------------|--------------|--------------|
-| Test set (75%) | 750 | 68 | 2 | 97.1% | 6.9% |
 | 10% | 100 | 9 | 8 | 53.4% | 90.8% |
 | 4% | 40 | 4 | 9 | 30.1% | 96.3% |
 | 2% | 20 | 2 | 9 | 17.4% | 98.2% |
 | 0.5% | 5 | 0.5 | 9 | 4.9% | 99.5% |
+
+*Note: The test dataset has artificial 75% swap prevalence (3 swaps per original ECG), yielding apparent PPV of 97%; clinical PPV values above are calculated using Bayes' theorem at realistic prevalence rates.*
 
 At realistic prevalence (2%), approximately 5 of 6 positive flags would be false positives (PPV ~17%), limiting standalone screening utility. PPV reaches 50% only at approximately 10% prevalence—a level that might occur in settings with undertrained staff or high-volume ECG acquisition. The high specificity (99.1%) ensures relatively few false alarms even at low prevalence.
 
@@ -322,15 +323,11 @@ The finding that adolescents (5.4% sensitivity) performed far worse than expecte
 
 **Simulation vs. real-world methodology:** Adult studies validated on confirmed real-world electrode errors, which may include signal artifacts that paradoxically aid detection. Our mathematical simulation creates idealized swaps that may be harder to detect. This methodological difference may explain much of the sensitivity discrepancy.
 
-**Einthoven's Law preservation under simulation:** A first-principles analysis reveals that Einthoven's Law (Lead I + Lead III = Lead II) is mathematically preserved under all idealized swap transformations. For example, after LA-RA swap: Lead I' + Lead III' = (−Lead I) + (Lead II) = Lead II − Lead I = Lead III = Lead II'. This means the Einthoven violation evidence source should theoretically contribute zero under perfect simulation conditions. Yet we observed Einthoven violations contributing to detection, likely because real ECG data contains minor deviations from perfect Einthoven equality due to digitization noise and measurement error. Critically, real-world electrode misplacements—with their associated impedance mismatches and signal distortions—may cause substantially larger Einthoven violations than simulation produces. This suggests our simulation-based sensitivity estimates may be *conservative*, and real-world detection rates could exceed those reported here.
+**Einthoven's Law preservation under simulation:** Einthoven's Law (Lead I + Lead III = Lead II) is algebraically invariant under all limb lead swap transformations—this is a mathematical identity, not an empirical observation. For LA-RA swap: Lead I' + Lead III' = (−Lead I) + (Lead II) = Lead II − Lead I = Lead III = Lead II'. Similar derivations hold for LA-LL and RA-LL swaps. Therefore, the Einthoven violation evidence source contributes zero to detection under simulation conditions. Any observed Einthoven "violations" in our data reflect only digitization noise and measurement imprecision in the original recordings, not swap-induced abnormalities. This is a fundamental limitation of mathematical simulation: one of the algorithm's four evidence sources is structurally disabled. Real-world electrode misplacements—with their associated impedance mismatches and signal distortions—likely produce genuine Einthoven violations that are absent from our simulated swaps. Our simulation-based sensitivity estimates are therefore conservative; real-world detection rates may substantially exceed those reported here.
 
 ### Implications for Clinical Deployment
 
-**What this study supports:** Deployment of limb lead swap detection in pediatric ECG workflows without age-specific threshold adjustment for specificity maintenance. The algorithm will not generate excessive false alarms in any pediatric age group, with 99.1% specificity overall.
-
-**What this study does not support:** Reliance on the algorithm as a primary safety mechanism. With age-dependent sensitivity ranging from 5% to 73% and ~17% clinical PPV at realistic prevalence, most swaps will be missed in older children, and many flags will be false positives. Standard quality assurance practices remain essential.
-
-**Neonatal findings are promising but limited:** The 73% sensitivity in neonates would be clinically valuable in NICU settings if confirmed. However, this finding is based on only 16 patients (all available neonatal 12-lead ECGs in the dataset), uses simulated rather than real swaps, and has a 24-point confidence interval. External validation with larger neonatal cohorts is needed.
+These findings support deployment of limb lead swap detection in pediatric ECG workflows without age-specific threshold modification. However, the algorithm should complement—not replace—standard quality assurance practices, given limited sensitivity in older children and modest PPV at realistic prevalence rates.
 
 ### Comparison to Prior Work
 
@@ -353,7 +350,7 @@ Direct comparison is limited by methodological differences. Our use of simulated
 
 **Small neonatal sample:** The neonatal finding (73% sensitivity) is based on 16 patients—all available neonatal 12-lead ECGs in the dataset. This is a dataset limitation, not a study design choice. External validation with larger neonatal cohorts is essential.
 
-**Statistical clustering:** Statistical analyses did not account for clustering of swapped ECGs within original recordings (3 swaps per original), which may affect confidence interval precision.
+**Statistical clustering:** Each original ECG contributed three simulated swaps, creating clustering (non-independence) that standard confidence intervals do not account for. Because all three swaps from a given patient share the same underlying Lead I amplitude and baseline characteristics, swap detection outcomes within a patient are likely correlated. Intra-cluster correlation inflates standard error estimates; Wilson score intervals therefore may be narrower than appropriate. Cluster-adjusted analyses (e.g., GEE or mixed-effects models) would provide more conservative confidence intervals but would not change point estimates.
 
 **Single-center Chinese dataset:** Equipment-specific signal processing and population characteristics may limit generalizability.
 
@@ -420,6 +417,18 @@ These results support deployment for flagging potential errors in pediatric ECG 
 ## Data Availability
 
 The ZZU pECG dataset is publicly available at https://doi.org/10.6084/m9.figshare.27078763. Detection algorithm source code is available at https://github.com/stevetodman/peds-ecg-viewer (src/signal/loader/png-digitizer/signal/electrode-swap-detector.ts). Validation scripts are in the scripts/ directory.
+
+---
+
+## Conflicts of Interest
+
+The author developed the electrode swap detection algorithm and conducted this validation study. There are no financial conflicts of interest. The algorithm is open-source and freely available.
+
+---
+
+## Funding
+
+This study received no external funding.
 
 ---
 
