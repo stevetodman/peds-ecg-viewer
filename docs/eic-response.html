@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Response to Editor-in-Chief</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Response to Editor-in-Chief</h1>
+</header>
+<h1 id="response-to-editor-in-chief">Response to Editor-in-Chief</h1>
+<h2
+id="automated-detection-of-limb-lead-electrode-misplacement-using-simulated-swaps-in-pediatric-ecgs">Automated
+Detection of Limb Lead Electrode Misplacement Using Simulated Swaps in
+Pediatric ECGs</h2>
+<hr />
+<p>We thank the Editor-in-Chief for this rigorous technical review. The
+critique identified a genuine error in our manuscript that we have
+corrected. We address each point below.</p>
+<hr />
+<h2
+id="critical-issue-1-internal-inconsistency-in-scoring-description">Critical
+Issue #1: Internal Inconsistency in Scoring Description</h2>
+<p><strong>Critique:</strong> The manuscript claimed Lead I polarity
+carries weight 0.8 and the threshold is 0.5, implying Lead I inversion
+alone can trigger detection—yet Figure 1 shows 0% sensitivity at
+threshold 0.7.</p>
+<p><strong>Response:</strong> The Editor is correct. This was an error
+in our manuscript. Upon re-examining the algorithm source code, we
+confirmed:</p>
+<ul>
+<li>Lead I inversion generates evidence strength 0.8</li>
+<li>However, this is multiplied by an evidence-type factor (0.5) when
+contributing to the LA-RA swap score</li>
+<li>Effective contribution: 0.8 × 0.5 = 0.4</li>
+<li>This is below the 0.5 detection threshold</li>
+</ul>
+<p><strong>The algorithm is designed to require corroborating evidence
+from multiple sources.</strong> No single evidence source can
+independently trigger detection. This design choice reduces false
+positives but limits sensitivity when only one indicator is present.</p>
+<p>We have corrected the Methods section to accurately describe the
+scoring mechanism:</p>
+<blockquote>
+<p><em>“Lead I Polarity (evidence strength: 0.8, LA-RA contribution
+factor: 0.5): … When both criteria are met, the effective contribution
+to LA-RA score is 0.8 × 0.5 = 0.4, which alone is insufficient to exceed
+the 0.5 detection threshold. This design requires corroborating evidence
+for detection.”</em></p>
+</blockquote>
+<p>This correction resolves the Figure 1 inconsistency: sensitivity
+drops sharply between thresholds 0.3 and 0.5 because most detectable
+swaps require combining evidence sources to exceed threshold. At
+threshold 0.7, virtually no ECGs achieve sufficient combined
+evidence.</p>
+<hr />
+<h2
+id="critical-issue-2-mean-amplitude-computed-across-entire-waveform">Critical
+Issue #2: Mean Amplitude Computed Across Entire Waveform</h2>
+<p><strong>Critique:</strong> Computing mean amplitude across the entire
+waveform could conflate heart rate effects with true amplitude
+differences across age groups.</p>
+<p><strong>Response:</strong> The critique is technically valid. Mean
+amplitude across the waveform is affected by the number of cardiac
+cycles in the recording window and baseline position. However:</p>
+<ol type="1">
+<li><p><strong>Fixed recording duration:</strong> The ZZU pECG dataset
+uses standardized 10-second recordings. Heart rate differences affect
+the number of complete cycles but the mean amplitude calculation is
+dominated by the QRS deflections rather than the isoelectric
+baseline.</p></li>
+<li><p><strong>The correlation we observe is with amplitude, not heart
+rate:</strong> We measured Lead I amplitude directly (Table 7) and found
+r = −0.96 with sensitivity. If heart rate were the confounder, we would
+expect the correlation to be with heart rate rather than
+amplitude.</p></li>
+<li><p><strong>The design is intentional:</strong> Mean-based features
+provide noise robustness. Beat-by-beat analysis would be more precise
+but substantially more complex.</p></li>
+</ol>
+<p>We have added this caveat to the Methods:</p>
+<blockquote>
+<p><em>“Mean amplitude is computed across the entire Lead I waveform.
+This approach provides noise robustness but may be affected by
+differences in heart rate across age groups.”</em></p>
+</blockquote>
+<hr />
+<h2 id="issue-3-einthovens-law-discussion">Issue #3: Einthoven’s Law
+Discussion</h2>
+<p><strong>Critique:</strong> The manuscript should clarify that limb
+lead swaps preserve rather than violate Einthoven’s Law
+algebraically.</p>
+<p><strong>Response:</strong> The manuscript already states this
+explicitly in the Discussion (“Einthoven’s Law… is invariant under all
+limb lead swap transformations”), but we have strengthened the
+language:</p>
+<blockquote>
+<p><em>“Einthoven’s Law (Lead I + Lead III = Lead II) is a mathematical
+identity that remains valid regardless of which electrodes are connected
+to which recording channels… Consequently, the algorithm’s Einthoven
+violation evidence source cannot contribute to detection under
+simulation conditions—this evidence source is structurally disabled by
+the simulation methodology.”</em></p>
+</blockquote>
+<hr />
+<h2 id="issue-4-safe-deployment-language">Issue #4: “Safe Deployment”
+Language</h2>
+<p><strong>Critique:</strong> Clinical deployment language should be
+softened.</p>
+<p><strong>Response:</strong> This was addressed in our previous
+revision. The current manuscript states:</p>
+<blockquote>
+<p><em>“These findings support deployment of limb lead swap detection in
+pediatric ECG workflows without age-specific threshold
+modification.”</em></p>
+</blockquote>
+<p>This is appropriately hedged—we support “deployment” for “flagging
+potential errors,” not standalone clinical decision-making.</p>
+<hr />
+<h2 id="issue-5-ground-truth-contamination">Issue #5: Ground Truth
+Contamination</h2>
+<p><strong>Critique:</strong> The simulation methodology creates
+artificial ground truth that may not reflect real-world errors.</p>
+<p><strong>Response:</strong> This is acknowledged throughout the
+manuscript as the primary limitation. The Discussion explicitly
+states:</p>
+<blockquote>
+<p><em>“Real-world electrode misplacements—with their associated
+impedance mismatches and signal distortions—likely produce genuine
+Einthoven violations that are absent from simulated swaps.”</em></p>
+</blockquote>
+<p>We frame our sensitivity estimates as a lower bound precisely because
+simulation cannot capture the full complexity of real-world errors.</p>
+<hr />
+<h2 id="issue-6-algorithm-version-documentation">Issue #6: Algorithm
+Version Documentation</h2>
+<p><strong>Critique:</strong> Specific commit hash should be provided
+for reproducibility.</p>
+<p><strong>Response:</strong> We have added the commit hash to Data
+Availability:</p>
+<blockquote>
+<p><em>“Detection algorithm source code is available at
+https://github.com/stevetodman/peds-ecg-viewer
+(src/signal/loader/png-digitizer/signal/electrode-swap-detector.ts,
+frozen at commit b88f5de).”</em></p>
+</blockquote>
+<hr />
+<h2 id="summary-of-revisions">Summary of Revisions</h2>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 37%" />
+<col style="width: 37%" />
+</colgroup>
+<thead>
+<tr>
+<th>Issue</th>
+<th>Response</th>
+<th>Revision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Scoring description error</td>
+<td>Accepted - manuscript was incorrect</td>
+<td>Methods rewritten with correct scoring formula</td>
+</tr>
+<tr>
+<td>Mean amplitude methodology</td>
+<td>Acknowledged limitation</td>
+<td>Caveat added to Methods</td>
+</tr>
+<tr>
+<td>Einthoven’s Law clarity</td>
+<td>Already stated, now strengthened</td>
+<td>Discussion language clarified</td>
+</tr>
+<tr>
+<td>Deployment language</td>
+<td>Previously revised</td>
+<td>No change needed</td>
+</tr>
+<tr>
+<td>Ground truth limitation</td>
+<td>Already acknowledged</td>
+<td>No change needed</td>
+</tr>
+<tr>
+<td>Commit hash</td>
+<td>Accepted</td>
+<td>Added to Data Availability</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="closing">Closing</h2>
+<p>We thank the Editor for identifying the scoring description error.
+The manuscript now accurately reflects the algorithm’s multi-source
+evidence requirement, which explains the threshold behavior shown in
+Figure 1. The core findings are unchanged: high specificity across
+pediatric ages, low sensitivity in older children, and the
+methodological insight that simulation systematically underestimates
+detection sensitivity.</p>
+<p>We believe the corrected manuscript is ready for publication.</p>
+</body>
+</html>

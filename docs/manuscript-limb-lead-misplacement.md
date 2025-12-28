@@ -105,17 +105,17 @@ The algorithm was developed independently as part of an open-source ECG library,
 
 **Evidence Sources and Scoring:**
 
-The algorithm evaluates four evidence sources, each contributing to a combined score:
+The algorithm evaluates multiple evidence sources, each generating an evidence strength that is then weighted by evidence-type-specific factors when contributing to swap-type scores:
 
-*1. Lead I Polarity (weight: 0.8):* Flags inversion when BOTH conditions are met: (a) mean amplitude < 0, AND (b) |minimum| > 1.5 × |maximum|. Mean amplitude is computed across the entire Lead I waveform. The morphology criterion (b) requires that the negative deflection substantially exceeds any positive deflection, preventing false positives from biphasic complexes. When both criteria are met, the 0.8 weight exceeds the 0.5 threshold, triggering detection independently. However, low-amplitude or biphasic Lead I waveforms may fail the morphology criterion even when mathematically inverted.
+*1. Lead I Polarity (evidence strength: 0.8, LA-RA contribution factor: 0.5):* Flags inversion when BOTH conditions are met: (a) mean amplitude < 0, AND (b) |minimum| > 1.5 × |maximum|. Mean amplitude is computed across the entire Lead I waveform. The morphology criterion (b) requires that the negative deflection substantially exceeds any positive deflection, preventing false positives from biphasic complexes. When both criteria are met, the effective contribution to LA-RA score is 0.8 × 0.5 = 0.4, which alone is insufficient to exceed the 0.5 detection threshold. This design requires corroborating evidence for detection.
 
-*2. Einthoven's Law (weight: 0–0.5):* Calculates RMSE between (Lead I + Lead III) and Lead II, normalized by RMS(Lead II). Weight = max(0, relative_error − 0.5), capped at 0.5.
+*2. Lead I Negative Amplitude (evidence strength: 0.7):* Flags when mean Lead I amplitude < −50 µV, indicating predominantly negative deflection.
 
-*3. Augmented Lead Polarity (weight: 0.75):* Flags when mean(aVR) > 0 AND mean(aVL) < 0 simultaneously.
+*3. Augmented Lead Polarity (evidence strength: 0.75, LA-RA contribution factor: 0.3):* Flags when mean(aVR) > 0 AND mean(aVL) < 0 simultaneously. Effective contribution: 0.75 × 0.3 = 0.225.
 
-*4. Lead I-II Correlation (weight: |r|):* Flags when Pearson correlation < −0.7.
+*4. Einthoven's Law Violation (evidence strength: 0–1.0):* Calculates RMSE between (Lead I + Lead III) and Lead II, normalized by RMS(Lead II). Flags when relative error > 0.5.
 
-**Threshold Interaction:** Evidence sources are combined additively into a single score (range 0 to theoretical maximum ~2.55 if all sources trigger simultaneously). The default detection threshold is 0.5. Because Lead I inversion carries weight 0.8, it alone can trigger detection when the morphology criterion is met. Other evidence sources typically require combinations to exceed threshold; for example, Einthoven violation (0.5) + augmented lead polarity (0.75) would yield 1.25, well above threshold.
+**Threshold Interaction:** Evidence contributions are summed for each swap type. The default detection threshold is 0.5. No single evidence source exceeds this threshold independently; the algorithm is designed to require corroborating evidence from multiple sources. For example, Lead I inversion (0.4) + augmented lead polarity (0.225) = 0.625 would exceed threshold. This multi-source requirement reduces false positives but limits sensitivity when only one indicator is present.
 
 ### Threshold Analysis
 
@@ -217,7 +217,7 @@ An unexpected finding was that adolescents—whose ECG patterns most closely res
 | Adolescent | 0.58 ± 0.24 | 5.4% | — |
 | | | | r = −0.96, p = 0.008 |
 
-Lead I amplitude increased progressively with age, and this correlated strongly and inversely with sensitivity (r = −0.96, p = 0.008). Note: This ecological correlation is based on n=5 age group means; individual-level correlation may differ. The relationship suggests that the algorithm's Lead I inversion detection—which triggers on mean amplitude < 0 with specific morphology criteria—may be calibrated for lower-amplitude signals. Higher-amplitude Lead I in older children may produce post-swap patterns that fail the morphology criterion despite meeting the polarity criterion.
+Lead I amplitude increased progressively with age, and this correlated strongly and inversely with sensitivity (r = −0.96, p = 0.008). Note: This ecological correlation is based on n=5 age group means; individual-level correlation may differ. The relationship suggests that detection depends on generating sufficient combined evidence from multiple sources. Higher-amplitude Lead I in older children may produce post-swap patterns that trigger fewer corroborating evidence sources, keeping combined scores below threshold.
 
 **Alternative explanation:** The discrepancy between adult study results (93–99% sensitivity) and our adolescent results (5.4%) may reflect methodological differences rather than algorithm performance. Adult studies used confirmed real-world swaps, which may include artifacts that make errors more conspicuous. Our mathematical simulation creates "clean" swaps that may be paradoxically harder to detect.
 
@@ -231,7 +231,7 @@ Lead I amplitude increased progressively with age, and this correlated strongly 
 | LA-LL | 12,334 | 9.0% (1,111/12,334) | 8.5–9.5% |
 | RA-LL | 12,334 | 9.4% (1,157/12,334) | 8.9–9.9% |
 
-Sensitivity was similar across swap types (p = 0.35), consistent with Lead I inversion being the primary detection mechanism (all three swaps affect Lead I). The narrow confidence intervals demonstrate highly precise estimates.
+Sensitivity was similar across swap types (p = 0.35), consistent with all three swap types producing similar patterns of evidence (all affect Lead I and augmented leads). The narrow confidence intervals demonstrate highly precise estimates.
 
 ### False Positive Analysis
 
@@ -246,7 +246,7 @@ The false positive rate was highest in neonates (6.3%, 1/16) and infants (2.7%, 
 
 ### False Negative Analysis
 
-Among 50 randomly sampled undetected swaps, 86% failed the Lead I morphology criterion: although mean amplitude was negative after inversion, the ratio |minimum|/|maximum| did not exceed 1.5, typically because the original Lead I had low amplitude or biphasic morphology. This explains why sensitivity was higher in neonates: their distinctive ECG morphology (rightward axis, dominant Lead III) creates larger-amplitude, more clearly polarized Lead I signals that meet both detection criteria after inversion.
+Among 50 randomly sampled undetected swaps, 86% failed to generate sufficient combined evidence to exceed the 0.5 threshold. Most commonly, individual evidence sources triggered (e.g., Lead I inversion contributing 0.4) but corroborating evidence was absent, leaving combined scores below threshold. This explains why sensitivity was higher in neonates: their distinctive ECG morphology (rightward axis, dominant R in V1, clearly polarized Lead I) generates multiple concurrent evidence sources that combine to exceed threshold.
 
 ### Confusion Matrix
 
@@ -284,9 +284,9 @@ The finding that adolescents (5.4% sensitivity) performed far worse than expecte
 
 ### Why Simulation Underestimates Sensitivity
 
-A key methodological insight emerged from this study: mathematical simulation of electrode swaps systematically underestimates real-world detection sensitivity because Einthoven's Law is algebraically preserved.
+A key methodological insight emerged from this study: mathematical simulation of electrode swaps systematically underestimates real-world detection sensitivity because Einthoven's Law is algebraically preserved under all limb lead swap transformations.
 
-Einthoven's Law (Lead I + Lead III = Lead II) is invariant under all limb lead swap transformations—this is a mathematical identity, not an empirical observation. For LA-RA swap: Lead I′ + Lead III′ = (−Lead I) + (Lead II) = Lead II − Lead I = Lead III = Lead II′. Similar derivations hold for LA-LL and RA-LL swaps. Therefore, our algorithm's Einthoven violation evidence source contributes zero to detection under simulation conditions.
+Einthoven's Law (Lead I + Lead III = Lead II) is a mathematical identity that remains valid regardless of which electrodes are connected to which recording channels. For LA-RA swap: Lead I′ + Lead III′ = (−Lead I) + (Lead II) = Lead II − Lead I = Lead III = Lead II′. Similar derivations hold for LA-LL and RA-LL swaps. Consequently, the algorithm's Einthoven violation evidence source cannot contribute to detection under simulation conditions—this evidence source is structurally disabled by the simulation methodology.
 
 This represents a fundamental limitation of simulation-based validation: one of the algorithm's four evidence sources is structurally disabled. Real-world electrode misplacements—with their associated impedance mismatches and signal distortions—likely produce genuine Einthoven violations that are absent from simulated swaps. Our sensitivity estimates are therefore conservative; real-world detection rates may substantially exceed those reported here.
 
@@ -367,7 +367,7 @@ These results support deployment for flagging potential errors in pediatric ECG 
 
 ## Data Availability
 
-The ZZU pECG dataset is publicly available at https://doi.org/10.6084/m9.figshare.27078763. Detection algorithm source code is available at https://github.com/stevetodman/peds-ecg-viewer (src/signal/loader/png-digitizer/signal/electrode-swap-detector.ts). Validation scripts are in the scripts/ directory.
+The ZZU pECG dataset is publicly available at https://doi.org/10.6084/m9.figshare.27078763. Detection algorithm source code is available at https://github.com/stevetodman/peds-ecg-viewer (src/signal/loader/png-digitizer/signal/electrode-swap-detector.ts, frozen at commit b88f5de). Validation scripts are in the scripts/ directory.
 
 ---
 
