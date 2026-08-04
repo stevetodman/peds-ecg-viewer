@@ -46,8 +46,9 @@ export interface RobustDigitizerResult extends DigitizerResult {
  * Robust ECG Digitizer with retry and ensemble selection
  */
 export class RobustECGDigitizer {
-  private config: Required<Omit<RobustDigitizerConfig, 'interactive' | 'onProgress' | 'onAttempt'>> &
-    Pick<RobustDigitizerConfig, 'interactive' | 'onProgress' | 'onAttempt'>;
+  private config: Required<Omit<RobustDigitizerConfig,
+    'interactive' | 'onProgress' | 'onAttempt' | 'aiTransmissionAuthorization'>> &
+    Pick<RobustDigitizerConfig, 'interactive' | 'onProgress' | 'onAttempt' | 'aiTransmissionAuthorization'>;
 
   constructor(config: RobustDigitizerConfig = {}) {
     this.config = {
@@ -57,6 +58,7 @@ export class RobustECGDigitizer {
       // Pass through to underlying digitizer
       aiProvider: config.aiProvider ?? 'anthropic',
       apiKey: config.apiKey ?? '',
+      aiTransmissionAuthorization: config.aiTransmissionAuthorization,
       model: config.model ?? '',
       aiConfidenceThreshold: config.aiConfidenceThreshold ?? 0.7,
       enableLocalFallback: config.enableLocalFallback ?? true,
@@ -84,6 +86,7 @@ export class RobustECGDigitizer {
       const digitizer = new ECGDigitizer({
         aiProvider: this.config.aiProvider,
         apiKey: this.config.apiKey,
+        aiTransmissionAuthorization: this.config.aiTransmissionAuthorization,
         model: this.config.model,
         aiConfidenceThreshold: this.config.aiConfidenceThreshold,
         enableLocalFallback: this.config.enableLocalFallback,

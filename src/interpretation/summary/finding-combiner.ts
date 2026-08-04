@@ -43,7 +43,7 @@ const HIGH_URGENCY_CODES = [
   'QTC_PROLONGED',
   'THIRD_DEGREE_AV_BLOCK',
   'SECOND_DEGREE_AV_BLOCK_TYPE_2',
-  'WPW',
+  'VENTRICULAR_PREEXCITATION',
   'BRUGADA_PATTERN',
   'ST_ELEVATION',
 ];
@@ -57,9 +57,10 @@ const REVIEW_CODES = [
   'RVH',
   'LVH',
   'BVH',
-  'WPW',
+  'VENTRICULAR_PREEXCITATION',
+  'POSSIBLE_PREEXCITATION',
   'BRUGADA_PATTERN',
-  'FIRST_DEGREE_AV_BLOCK',
+  'PR_PROLONGED',
   'SECOND_DEGREE_AV_BLOCK_TYPE_1',
   'SECOND_DEGREE_AV_BLOCK_TYPE_2',
   'THIRD_DEGREE_AV_BLOCK',
@@ -72,27 +73,33 @@ const REVIEW_CODES = [
  * Generate rhythm description from findings
  */
 function generateRhythmDescription(
-  findings: InterpretationFinding[],
-  hr: number
+  hr: number | null,
+  assessedRhythm?: Partial<RhythmDescription>
 ): RhythmDescription {
-  const rateFinding = findings.find(f => f.category === 'rate');
-
-  let rhythmName: string;
-  if (rateFinding?.code === 'SINUS_TACHYCARDIA') {
-    rhythmName = 'Sinus tachycardia';
-  } else if (rateFinding?.code === 'SINUS_BRADYCARDIA') {
-    rhythmName = 'Sinus bradycardia';
-  } else {
-    rhythmName = 'Normal sinus rhythm';
+  if (assessedRhythm) {
+    // Accept supplied interpretation evidence, but never convert omitted
+    // rhythm fields into an implied sinus/regular/1:1 assessment.
+    const name = assessedRhythm.name?.trim()
+      ? assessedRhythm.name
+      : 'Rhythm not determined';
+    return {
+      name,
+      regular: assessedRhythm.regular ?? null,
+      ventricularRate: assessedRhythm.ventricularRate ?? hr,
+      origin: assessedRhythm.origin ?? 'unknown',
+      pWaveMorphology: assessedRhythm.pWaveMorphology ?? 'unknown',
+      avRelationship: assessedRhythm.avRelationship ?? 'unknown',
+      ...(assessedRhythm.atrialRate === undefined ? {} : { atrialRate: assessedRhythm.atrialRate }),
+    };
   }
 
   return {
-    name: rhythmName,
-    regular: true,
-    ventricularRate: Math.round(hr),
-    origin: 'sinus',
-    pWaveMorphology: 'normal',
-    avRelationship: '1:1',
+    name: 'Rhythm not determined',
+    regular: null,
+    ventricularRate: hr === null ? null : Math.round(hr),
+    origin: 'unknown',
+    pWaveMorphology: 'unknown',
+    avRelationship: 'unknown',
   };
 }
 
@@ -103,7 +110,7 @@ function generateOneLiner(findings: InterpretationFinding[]): string {
   const abnormalFindings = findings.filter(f => f.severity !== 'normal');
 
   if (abnormalFindings.length === 0) {
-    return 'Normal ECG for age';
+    return 'No measured abnormality detected; automated analysis is limited';
   }
 
   if (abnormalFindings.length === 1) {
@@ -117,15 +124,16 @@ function generateOneLiner(findings: InterpretationFinding[]): string {
       .map(f => {
         // Create short version of finding
         switch (f.code) {
-          case 'SINUS_TACHYCARDIA': return 'sinus tachycardia';
-          case 'SINUS_BRADYCARDIA': return 'sinus bradycardia';
+          case 'RATE_HIGH': return 'high rate for age';
+          case 'RATE_LOW': return 'low rate for age';
+          case 'ANALYSIS_INCOMPLETE': return 'analysis incomplete';
           case 'LEFT_AXIS_DEVIATION': return 'LAD';
           case 'RIGHT_AXIS_DEVIATION': return 'RAD';
           case 'EXTREME_AXIS': return 'extreme axis';
           case 'QTC_PROLONGED': return 'prolonged QTc';
           case 'QTC_BORDERLINE': return 'borderline QTc';
           case 'QRS_PROLONGED': return 'wide QRS';
-          case 'FIRST_DEGREE_AV_BLOCK': return '1st degree AV block';
+          case 'PR_PROLONGED': return 'prolonged PR';
           case 'PR_SHORT': return 'short PR';
           case 'RVH': return 'RVH';
           case 'LVH': return 'LVH';
@@ -148,7 +156,8 @@ function generateOneLiner(findings: InterpretationFinding[]): string {
  */
 export function combineFindings(
   findings: InterpretationFinding[],
-  hr: number
+  hr: number | null,
+  assessedRhythm?: Partial<RhythmDescription>
 ): {
   summary: InterpretationSummary;
   rhythm: RhythmDescription;
@@ -165,10 +174,16 @@ export function combineFindings(
   const hasCritical = findings.some(f => f.severity === 'critical');
   const hasAbnormal = findings.some(f => f.severity === 'abnormal');
   const hasBorderline = findings.some(f => f.severity === 'borderline');
+  const isIncomplete = findings.some(f => f.code === 'ANALYSIS_INCOMPLETE');
 
   let conclusion: InterpretationSummary['conclusion'];
+  // A confirmed abnormal measurement remains abnormal even when other parts
+  // of the tracing are unavailable. Incompleteness only blocks a reassuring
+  // Normal/Borderline conclusion.
   if (hasCritical || hasAbnormal) {
     conclusion = 'Abnormal ECG';
+  } else if (isIncomplete) {
+    conclusion = 'Inconclusive';
   } else if (hasBorderline) {
     conclusion = 'Borderline ECG';
   } else {
@@ -181,21 +196,21 @@ export function combineFindings(
     urgency = 'critical';
   } else if (hasAbnormal) {
     const hasHighUrgency = findings.some(
-      f => f.severity === 'abnormal' && HIGH_URGENCY_CODES.includes(f.code as string)
+      f => f.severity === 'abnormal' && HIGH_URGENCY_CODES.includes(f.code)
     );
     urgency = hasHighUrgency ? 'urgent' : 'attention';
   }
 
   // 4. Determine if cardiology review recommended
   const abnormalFindings = findings.filter(f => f.severity !== 'normal');
-  const hasReviewTrigger = findings.some(f => REVIEW_CODES.includes(f.code as string));
-  const recommendReview = hasCritical || hasReviewTrigger || abnormalFindings.length >= 3;
+  const hasReviewTrigger = findings.some(f => REVIEW_CODES.includes(f.code));
+  const recommendReview = isIncomplete || hasCritical || hasReviewTrigger || abnormalFindings.length >= 3;
 
   // 5. Generate one-liner
   const oneLiner = generateOneLiner(orderedFindings);
 
   // 6. Create rhythm description
-  const rhythm = generateRhythmDescription(findings, hr);
+  const rhythm = generateRhythmDescription(hr, assessedRhythm);
 
   return {
     summary: {

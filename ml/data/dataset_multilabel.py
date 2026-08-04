@@ -28,7 +28,7 @@ try:
 except ImportError:
     WFDB_AVAILABLE = False
 
-from ml.data.augmentations_v2 import create_lead_mask
+from ml.data.preprocessing import TARGET_SAMPLES, preprocess_ecg
 
 
 # Standard 12-lead order
@@ -122,6 +122,14 @@ class ZZUMultiLabelDataset(Dataset):
         self.augmentor = augmentor
         self.return_metadata = return_metadata
 
+        if target_length != TARGET_SAMPLES:
+            raise ValueError(
+                f"target_length must be {TARGET_SAMPLES}; changing model duration "
+                "requires a new preprocessing version"
+            )
+        if target_leads != len(LEAD_ORDER):
+            raise ValueError("the hybrid model requires the standard 12-lead layout")
+
         # Load label mapping
         self.label_mapping = load_label_mapping()
 
@@ -203,20 +211,33 @@ class ZZUMultiLabelDataset(Dataset):
 
         n_original_leads = int(row['Lead'])
 
-        if signal is None:
-            # Return zeros if load fails
-            signal = np.zeros((self.target_leads, self.target_length), dtype=np.float32)
-        else:
-            # Reorder leads to standard order and pad missing
-            signal = self._standardize_leads(signal, lead_names)
-            # Resample to target length
-            signal = self._resample(signal, fs)
+        present_leads = np.array(
+            [1.0 if lead in lead_names else 0.0 for lead in LEAD_ORDER],
+            dtype=np.float32,
+        )
+        if int(present_leads.sum()) != n_original_leads:
+            raise RuntimeError(
+                f"lead metadata mismatch for {row['Filename']}: metadata says "
+                f"{n_original_leads}, record contains {int(present_leads.sum())} standard leads"
+            )
+        if int(present_leads.sum()) not in (9, 12):
+            raise RuntimeError(
+                f"unsupported lead configuration for {row['Filename']}: "
+                f"{int(present_leads.sum())} standard leads"
+            )
+        if int(present_leads.sum()) == 9:
+            missing = {index for index, value in enumerate(present_leads) if value == 0}
+            if missing != set(NINE_LEAD_MISSING):
+                raise RuntimeError(
+                    f"unsupported 9-lead layout for {row['Filename']}: missing indices "
+                    f"{sorted(missing)}"
+                )
 
-        # Normalize
-        signal = self._normalize(signal)
+        signal = self._standardize_leads(signal, lead_names)
+        signal = preprocess_ecg(signal, fs, input_unit="mv")
 
         # Create lead mask BEFORE augmentation (reflects true data)
-        lead_mask = create_lead_mask(n_original_leads)
+        lead_mask = present_leads
 
         # Apply augmentation (training only)
         # Note: augmentation may zero additional leads (9-lead masking)
@@ -256,15 +277,18 @@ class ZZUMultiLabelDataset(Dataset):
         else:
             return signal_tensor, labels_tensor, lead_mask_tensor, age_tensor
 
-    def _load_ecg(self, filepath: str) -> Optional[Tuple[np.ndarray, int, List[str]]]:
+    def _load_ecg(self, filepath: str) -> Tuple[np.ndarray, int, List[str]]:
         """Load ECG from WFDB format."""
         if not WFDB_AVAILABLE:
-            return None
+            raise RuntimeError("wfdb is required to load the ZZU-pECG dataset")
         try:
             record = wfdb.rdrecord(filepath)
-            return record.p_signal.T, record.fs, record.sig_name
-        except Exception:
-            return None
+        except Exception as exc:
+            raise RuntimeError(f"failed to load ECG record: {filepath}") from exc
+        signal = np.asarray(record.p_signal, dtype=np.float32).T
+        if not np.isfinite(signal).all():
+            raise RuntimeError(f"ECG record contains non-finite values: {filepath}")
+        return signal, int(record.fs), list(record.sig_name)
 
     def _standardize_leads(
         self,
@@ -281,34 +305,6 @@ class ZZUMultiLabelDataset(Dataset):
                 standardized[i] = signal[src_idx]
 
         return standardized
-
-    def _resample(self, signal: np.ndarray, fs: int) -> np.ndarray:
-        """Resample signal to target length."""
-        n_leads, n_samples = signal.shape
-
-        if n_samples == self.target_length:
-            return signal
-
-        # Simple linear interpolation
-        x_old = np.linspace(0, 1, n_samples)
-        x_new = np.linspace(0, 1, self.target_length)
-
-        resampled = np.zeros((n_leads, self.target_length), dtype=np.float32)
-        for i in range(n_leads):
-            resampled[i] = np.interp(x_new, x_old, signal[i])
-
-        return resampled
-
-    def _normalize(self, signal: np.ndarray) -> np.ndarray:
-        """Z-score normalize each lead."""
-        for i in range(signal.shape[0]):
-            lead = signal[i]
-            std = lead.std()
-            if std > 1e-6:
-                signal[i] = (lead - lead.mean()) / std
-            else:
-                signal[i] = lead - lead.mean()
-        return signal
 
     def get_pos_weights(self) -> torch.Tensor:
         """

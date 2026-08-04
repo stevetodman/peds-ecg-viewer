@@ -55,7 +55,7 @@ export class LabelRenderer {
    * @param x - X position
    * @param baselineY - Y position of the baseline (label is vertically centered)
    */
-  renderLeadLabel(lead: LeadName | string, x: number, baselineY: number): void {
+  renderLeadLabel(lead: string, x: number, baselineY: number): void {
     const ctx = this.ctx;
     const { fontFamily, fontWeight, color } = this.config;
 
@@ -74,7 +74,7 @@ export class LabelRenderer {
    * @param x - X position
    * @param y - Y position (top of panel)
    */
-  renderLeadLabelTopLeft(lead: LeadName | string, x: number, y: number): void {
+  renderLeadLabelTopLeft(lead: string, x: number, y: number): void {
     const ctx = this.ctx;
     const { fontFamily, fontWeight, color } = this.config;
 

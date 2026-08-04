@@ -24,10 +24,9 @@ describe('Brugada Pattern Analyzer', () => {
       expect(findings).toHaveLength(1);
       expect(findings[0].code).toBe('BRUGADA_PATTERN');
       expect(findings[0].severity).toBe('abnormal');
-      expect(findings[0].statement).toContain('Type 1');
-      expect(findings[0].statement).toContain('coved');
-      expect(findings[0].clinicalNote).toContain('DIAGNOSTIC');
-      expect(findings[0].clinicalNote).toContain('ICD evaluation');
+      expect(findings[0].statement).toContain('type 1 Brugada ECG pattern');
+      expect(findings[0].statement).toContain('Coved');
+      expect(findings[0].clinicalNote).toContain('cannot diagnose Brugada syndrome');
     });
 
     it('should detect Type 1 with high confidence when all criteria met', () => {
@@ -42,10 +41,10 @@ describe('Brugada Pattern Analyzer', () => {
       );
 
       expect(findings).toHaveLength(1);
-      expect(findings[0].confidence).toBeGreaterThanOrEqual(0.85);
+      expect(findings[0].confidence).toBeLessThanOrEqual(0.75);
     });
 
-    it('should still detect Type 1 without negative T (lower confidence)', () => {
+    it('does not call a type 1 pattern without a negative T wave in the qualifying lead', () => {
       const ageDays = ageToDays(10, 'years');
       const findings = analyzeBrugada(
         {
@@ -56,10 +55,7 @@ describe('Brugada Pattern Analyzer', () => {
         ageDays
       );
 
-      expect(findings).toHaveLength(1);
-      expect(findings[0].code).toBe('BRUGADA_PATTERN');
-      // Lower confidence without negative T
-      expect(findings[0].confidence).toBe(0.7);
+      expect(findings).toHaveLength(0);
     });
   });
 
@@ -80,10 +76,8 @@ describe('Brugada Pattern Analyzer', () => {
       expect(findings).toHaveLength(1);
       expect(findings[0].code).toBe('BRUGADA_PATTERN');
       expect(findings[0].severity).toBe('borderline');
-      expect(findings[0].statement).toContain('Type 2');
-      expect(findings[0].statement).toContain('saddleback');
-      expect(findings[0].clinicalNote).toContain('NOT diagnostic');
-      expect(findings[0].clinicalNote).toContain('provocative testing');
+      expect(findings[0].statement).toContain('Saddleback');
+      expect(findings[0].clinicalNote).toContain('not diagnostic');
     });
 
     it('should detect Type 2 with biphasic T waves', () => {
@@ -98,12 +92,12 @@ describe('Brugada Pattern Analyzer', () => {
       );
 
       expect(findings).toHaveLength(1);
-      expect(findings[0].statement).toContain('Type 2');
+      expect(findings[0].statement).toContain('Saddleback');
     });
   });
 
   describe('ST Elevation with RBBB Pattern', () => {
-    it('should flag ST elevation with RBBB as possible Brugada', () => {
+    it('preserves ST elevation with RBBB as nonspecific rather than a Brugada diagnosis', () => {
       const ageDays = ageToDays(12, 'years');
       const findings = analyzeBrugada(
         {
@@ -117,8 +111,8 @@ describe('Brugada Pattern Analyzer', () => {
 
       expect(findings).toHaveLength(1);
       expect(findings[0].code).toBe('ST_ELEVATION');
-      expect(findings[0].statement).toContain('RBBB pattern');
-      expect(findings[0].statement).toContain('consider Brugada');
+      expect(findings[0].statement).toContain('RBBB morphology');
+      expect(findings[0].clinicalNote).toContain('does not establish Brugada syndrome');
     });
   });
 
@@ -162,19 +156,21 @@ describe('Brugada Pattern Analyzer', () => {
   });
 
   describe('hasPossibleBrugada helper', () => {
-    it('should return true for significant ST elevation with coved pattern', () => {
+    it('requires an inverted T wave for coved type-1 helper output', () => {
       const result = hasPossibleBrugada({
         stElevationV1: 2.5,
         stMorphology: 'coved',
+        tWaveV1: 'negative',
       });
 
       expect(result).toBe(true);
     });
 
-    it('should return true for significant ST elevation with saddleback pattern', () => {
+    it('requires a positive or biphasic T wave for saddleback helper output', () => {
       const result = hasPossibleBrugada({
         stElevationV1: 2.0,
         stMorphology: 'saddleback',
+        tWaveV1: 'positive',
       });
 
       expect(result).toBe(true);

@@ -13,6 +13,7 @@ import type { GeminiResponse } from './api-types';
  */
 export class GoogleProvider extends BaseAIProvider {
   name = 'google';
+  readonly privacyProvider = 'google' as const;
 
   constructor(apiKey: string, model?: string) {
     super(apiKey, model);

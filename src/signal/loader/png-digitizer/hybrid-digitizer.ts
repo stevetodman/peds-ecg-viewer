@@ -8,7 +8,6 @@ import type {
   DigitizerConfig,
   DigitizerResult,
   PanelAnalysis,
-  AIAnalysisResult,
 } from './types';
 import { createAIProvider, getEnvApiKey } from './ai';
 import type { AIProviderType } from './ai';
@@ -17,7 +16,6 @@ import { LocalGridDetector } from './cv/grid-detector';
 import { loadImage } from './cv/image-loader';
 import { SignalReconstructor } from './signal/reconstructor';
 import { detectBaseline } from './cv/baseline-detector';
-import type { LeadName } from '../../../types';
 
 /**
  * Hybrid digitizer configuration
@@ -105,7 +103,7 @@ export class HybridDigitizer {
     let aiPanels: PanelAnalysis[] = [];
     let waveformColor: { r: number; g: number; b: number } | undefined;
 
-    if (this.config.apiKey) {
+    if (this.config.apiKey && this.config.aiTransmissionAuthorization) {
       try {
         const provider = createAIProvider(
           this.config.aiProvider as AIProviderType,
@@ -113,7 +111,11 @@ export class HybridDigitizer {
         );
 
         // Use minimal prompt
-        const response = await provider.analyzeWithPrompt(imageData, LABELS_ONLY_PROMPT);
+        const response = await provider.analyzeWithPrompt(
+          imageData,
+          LABELS_ONLY_PROMPT,
+          this.config.aiTransmissionAuthorization,
+        );
         aiPanels = response.analysis.panels;
 
         // Parse waveform color

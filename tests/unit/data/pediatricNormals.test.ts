@@ -129,6 +129,23 @@ describe('classifyValue', () => {
   it('should classify values near p98 as borderline_high', () => {
     expect(classifyValue(98, testRange)).toBe('borderline_high');
   });
+
+  it('treats the published p2/p98 endpoints as inclusive in standard mode', () => {
+    expect(classifyValue(60, testRange)).toBe('borderline_low');
+    expect(classifyValue(100, testRange)).toBe('borderline_high');
+  });
+
+  it('widens in lenient mode and narrows in strict mode', () => {
+    expect(classifyValue(59, testRange, 'lenient')).toBe('borderline_low');
+    expect(classifyValue(59, testRange, 'strict')).toBe('low');
+    expect(classifyValue(101, testRange, 'lenient')).toBe('borderline_high');
+    expect(classifyValue(101, testRange, 'strict')).toBe('high');
+  });
+
+  it('rejects non-finite measurements and malformed ranges', () => {
+    expect(() => classifyValue(Number.NaN, testRange)).toThrow(TypeError);
+    expect(() => classifyValue(80, { p2: 100, p50: 80, p98: 60 })).toThrow(TypeError);
+  });
 });
 
 describe('estimatePercentile', () => {

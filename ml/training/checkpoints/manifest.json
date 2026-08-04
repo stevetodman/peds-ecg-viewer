@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "artifacts": [
+    { "path": "ml/training/checkpoints/best_abnormal.pt", "sha256": "d533680af1f984c1ae91f5bc4e765263889137e6ad4a20debbe07602e88b900a", "size": 11701395 },
+    { "path": "ml/training/checkpoints/best_chd.pt", "sha256": "34c42b35c07e69f3b3d443e747bd7d2f7e01f0622a95e8e58f0125f136408644", "size": 11700425 },
+    { "path": "ml/training/checkpoints/best_hybrid_20251225_091556.pt", "sha256": "4d4748156a6725a6de04f1cd37ce6619f0964d96e9773ca9d367ea3f3359c618", "size": 12389267 },
+    { "path": "ml/training/checkpoints/epoch_10_abnormal.pt", "sha256": "d6db509b42e375122170c2f653a70541d62a7b7b4fc3beeffa83e8f1fecd697f", "size": 11702171 },
+    { "path": "ml/training/checkpoints/epoch_10_chd.pt", "sha256": "6cf3091c433ce65e5b58e6ff5bb1714ba3e4d763fd31e5ef872fe21462c13d57", "size": 11701201 },
+    { "path": "ml/training/checkpoints/epoch_20_abnormal.pt", "sha256": "1886d9d6f9782e37dff4d7b1684ba6aa65394e7ed58649051c5eb4caf4272b6b", "size": 11702171 },
+    { "path": "ml/training/checkpoints/epoch_20_chd.pt", "sha256": "1b17557036149cea7002af18450d2fbeafbcf036f4a95ff937ace93515366984", "size": 11700945 },
+    { "path": "ml/training/checkpoints/epoch_30_chd.pt", "sha256": "2f589511607bbddd925ed94225f6d70195ff5f8be4b1422b4901d0481de6c505", "size": 11700945 },
+    { "path": "ml/training/checkpoints/latest_abnormal.pt", "sha256": "fe8df17535b9f3e703be754c8a90a9d50f9eb9d5dc7f3a1183ca909174510dea", "size": 11701783 },
+    { "path": "ml/training/checkpoints/latest_chd.pt", "sha256": "b0914677ec19dcb1c019d3f9f665b7562685c77876f279253526e563933fae3e", "size": 11700813 }
+  ]
+}

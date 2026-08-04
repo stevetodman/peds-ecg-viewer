@@ -17,19 +17,21 @@ interface IntervalNormals {
  * Analyze PR interval
  */
 function analyzePR(
-  pr: number,
+  pr: number | null,
   prNormals: NormalRange,
-  ageDays: number
+  ageDays: number,
+  strictness: 'lenient' | 'standard' | 'strict'
 ): InterpretationFinding[] {
   const findings: InterpretationFinding[] = [];
-  const classification = classifyValue(pr, prNormals);
+  if (pr === null || !Number.isFinite(pr) || pr <= 0) return findings;
+  const classification = classifyValue(pr, prNormals, strictness);
 
   if (classification === 'high' || classification === 'borderline_high') {
     const severity: Severity = pr > 200 ? 'abnormal' : 'borderline';
 
     findings.push({
-      code: 'FIRST_DEGREE_AV_BLOCK',
-      statement: `First-degree AV block (PR ${Math.round(pr)} ms, upper limit ${prNormals.p98} for age)`,
+      code: 'PR_PROLONGED',
+      statement: `Prolonged PR interval (${Math.round(pr)} ms, upper reference limit ${prNormals.p98} for age)`,
       severity,
       category: 'intervals',
       evidence: {
@@ -39,9 +41,7 @@ function analyzePR(
       },
       ageAdjusted: true,
       confidence: 0.85,
-      clinicalNote: severity === 'abnormal'
-        ? 'Consider myocarditis, rheumatic fever, medications, or congenital heart disease'
-        : undefined,
+      clinicalNote: 'A prolonged PR measurement alone does not establish first-degree AV block without confirming 1:1 atrioventricular conduction.',
     });
   } else if (pr < 80 && ageDays > 30) {
     // Short PR - only significant after neonatal period
@@ -56,7 +56,7 @@ function analyzePR(
       },
       ageAdjusted: true,
       confidence: 0.8,
-      clinicalNote: 'Consider pre-excitation (WPW syndrome) or ectopic atrial rhythm',
+      clinicalNote: 'A short PR alone is nonspecific; review P-wave and QRS morphology for possible pre-excitation or an ectopic atrial origin.',
     });
   }
 
@@ -67,12 +67,14 @@ function analyzePR(
  * Analyze QRS duration
  */
 function analyzeQRS(
-  qrs: number,
+  qrs: number | null,
   qrsNormals: NormalRange,
-  ageDays: number
+  ageDays: number,
+  strictness: 'lenient' | 'standard' | 'strict'
 ): InterpretationFinding[] {
   const findings: InterpretationFinding[] = [];
-  const classification = classifyValue(qrs, qrsNormals);
+  if (qrs === null || !Number.isFinite(qrs) || qrs <= 0) return findings;
+  const classification = classifyValue(qrs, qrsNormals, strictness);
 
   if (classification === 'high' || classification === 'borderline_high') {
     // Age-adjusted QRS prolongation thresholds
@@ -113,17 +115,15 @@ function analyzeQRS(
  * Analyze QTc interval - critical for arrhythmia risk
  */
 function analyzeQTc(
-  qtc: number,
+  qtc: number | null,
   qtcNormals: NormalRange,
-  hr: number
+  hr: number | null,
+  strictness: 'lenient' | 'standard' | 'strict'
 ): InterpretationFinding[] {
   const findings: InterpretationFinding[] = [];
+  if (qtc === null || !Number.isFinite(qtc) || qtc <= 0) return findings;
 
-  // QTc thresholds are fairly consistent across pediatric ages
-  // Critical: >500ms (high risk Torsades)
-  // Prolonged: >470ms
-  // Borderline: >450ms
-  // Short: <340ms
+  const classification = classifyValue(qtc, qtcNormals, strictness);
 
   if (qtc > 500) {
     findings.push({
@@ -133,13 +133,13 @@ function analyzeQTc(
       category: 'intervals',
       evidence: {
         qtc: Math.round(qtc),
-        hr: Math.round(hr),
+        hr: hr === null ? 'unavailable' : Math.round(hr),
         threshold: 500,
       },
       confidence: 0.9,
       clinicalNote: 'URGENT: Review medications (especially QT-prolonging drugs), check electrolytes (K, Mg, Ca), consider Long QT syndrome workup',
     });
-  } else if (qtc > 470) {
+  } else if (classification === 'high') {
     findings.push({
       code: 'QTC_PROLONGED',
       statement: `Prolonged QTc (${Math.round(qtc)} ms)`,
@@ -148,12 +148,12 @@ function analyzeQTc(
       evidence: {
         qtc: Math.round(qtc),
         upperLimit: qtcNormals.p98,
-        hr: Math.round(hr),
+        hr: hr === null ? 'unavailable' : Math.round(hr),
       },
       confidence: 0.85,
       clinicalNote: 'Consider Long QT syndrome screening, medication review, electrolyte check',
     });
-  } else if (qtc > 450) {
+  } else if (classification === 'borderline_high') {
     findings.push({
       code: 'QTC_BORDERLINE',
       statement: `Borderline prolonged QTc (${Math.round(qtc)} ms)`,
@@ -161,21 +161,22 @@ function analyzeQTc(
       category: 'intervals',
       evidence: {
         qtc: Math.round(qtc),
+        upperLimit: qtcNormals.p98,
       },
       confidence: 0.8,
     });
-  } else if (qtc < 340) {
+  } else if (classification === 'low' || classification === 'borderline_low') {
     findings.push({
       code: 'QTC_SHORT',
       statement: `Short QTc (${Math.round(qtc)} ms)`,
-      severity: qtc < 320 ? 'abnormal' : 'borderline',
+      severity: classification === 'low' ? 'abnormal' : 'borderline',
       category: 'intervals',
       evidence: {
         qtc: Math.round(qtc),
       },
       confidence: 0.75,
-      clinicalNote: qtc < 320
-        ? 'Consider Short QT syndrome - associated with sudden cardiac death risk'
+      clinicalNote: classification === 'low'
+        ? 'QTc below the age-specific reference interval; verify the measurement and assess clinically for short-QT causes.'
         : undefined,
     });
   }
@@ -194,19 +195,20 @@ function analyzeQTc(
  * @returns Interval-related findings
  */
 export function analyzeIntervals(
-  pr: number,
-  qrs: number,
-  qtc: number,
-  hr: number,
+  pr: number | null,
+  qrs: number | null,
+  qtc: number | null,
+  hr: number | null,
   normals: IntervalNormals,
-  ageDays: number
+  ageDays: number,
+  strictness: 'lenient' | 'standard' | 'strict' = 'standard'
 ): InterpretationFinding[] {
   const findings: InterpretationFinding[] = [];
 
   // Analyze each interval
-  findings.push(...analyzePR(pr, normals.prInterval, ageDays));
-  findings.push(...analyzeQRS(qrs, normals.qrsDuration, ageDays));
-  findings.push(...analyzeQTc(qtc, normals.qtcBazett, hr));
+  findings.push(...analyzePR(pr, normals.prInterval, ageDays, strictness));
+  findings.push(...analyzeQRS(qrs, normals.qrsDuration, ageDays, strictness));
+  findings.push(...analyzeQTc(qtc, normals.qtcBazett, hr, strictness));
 
   return findings;
 }

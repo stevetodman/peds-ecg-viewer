@@ -42,7 +42,7 @@ function generateBeat(
 ): number[] {
   const beatDuration = 60 / heartRate; // seconds
   const numSamples = Math.round(sampleRate * beatDuration);
-  const samples: number[] = new Array(numSamples).fill(0);
+  const samples: number[] = Array<number>(numSamples).fill(0);
 
   // Time points (as fraction of beat)
   const pStart = 0.1;
@@ -191,7 +191,7 @@ export function generateFlatLine(
   sampleRate: number = 500
 ): ECGSignal {
   const totalSamples = Math.round(sampleRate * duration);
-  const flatLine = new Array(totalSamples).fill(0);
+  const flatLine: number[] = Array<number>(totalSamples).fill(0);
 
   const leads: Record<LeadName, number[]> = {} as Record<LeadName, number[]>;
   for (const lead of STANDARD_LEADS) {

@@ -10,7 +10,8 @@ import type { DigitizerConfig } from './types';
 /**
  * Default digitizer configuration
  */
-export const DEFAULT_CONFIG: Required<Omit<DigitizerConfig, 'apiKey' | 'model' | 'onProgress' | 'interactive'>> = {
+export const DEFAULT_CONFIG: Required<Omit<DigitizerConfig,
+  'apiKey' | 'model' | 'onProgress' | 'interactive' | 'aiTransmissionAuthorization'>> = {
   aiProvider: 'anthropic',
   aiConfidenceThreshold: 0.7,
   enableLocalFallback: true,

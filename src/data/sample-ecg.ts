@@ -121,7 +121,7 @@ function generateBeat(leadName: LeadName): number[] {
   const config = LEAD_CONFIG[leadName] || DEFAULT_CONFIG;
   const beatDuration = 60 / HEART_RATE; // seconds
   const numSamples = Math.round(SAMPLE_RATE * beatDuration);
-  const samples: number[] = new Array(numSamples).fill(0);
+  const samples: number[] = Array<number>(numSamples).fill(0);
 
   const sign = config.inverted ? -1 : 1;
 

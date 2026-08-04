@@ -14,18 +14,17 @@
  * @module interpretation/analyzers/preexcitation-analyzer
  */
 
-import { InterpretationFinding, Severity } from '../../types/interpretation';
-import { NormalRange } from '../../data/pediatricNormals';
+import { InterpretationFinding } from '../../types/interpretation';
 
 /**
  * Pre-excitation analysis input
  */
 export interface PreexcitationInput {
   /** PR interval in ms */
-  pr: number;
+  pr: number | null;
 
   /** QRS duration in ms */
-  qrs: number;
+  qrs: number | null;
 
   /** Delta wave detected (from waveform analysis) */
   deltaWaveDetected?: boolean;
@@ -75,9 +74,8 @@ function getThresholds(ageDays: number): PreexcitationThresholds {
  * Analyze for pre-excitation (WPW pattern)
  *
  * Detection criteria:
- * - Classic WPW: Short PR + Wide QRS + Delta wave
- * - Possible WPW: Short PR + Wide QRS (no delta wave data)
- * - LGL pattern: Short PR only (enhanced AV conduction)
+ * - Pre-excitation pattern: Short PR + Wide QRS + confirmed delta wave
+ * - Possible pre-excitation: Short PR + Wide QRS (delta wave not assessed)
  *
  * @param input - PR interval, QRS duration, and optional delta wave info
  * @param ageDays - Patient age in days
@@ -90,6 +88,15 @@ export function analyzePreexcitation(
   const findings: InterpretationFinding[] = [];
   const thresholds = getThresholds(ageDays);
 
+  if (
+    input.pr === null ||
+    input.qrs === null ||
+    !Number.isFinite(input.pr) ||
+    !Number.isFinite(input.qrs)
+  ) {
+    return findings;
+  }
+
   const shortPR = input.pr < thresholds.shortPR;
   const wideQRS = input.qrs > thresholds.wideQRS;
   const deltaWave = input.deltaWaveDetected ?? false;
@@ -97,8 +104,8 @@ export function analyzePreexcitation(
   // Classic WPW: Short PR + Wide QRS + Delta wave
   if (shortPR && wideQRS && deltaWave) {
     findings.push({
-      code: 'WPW',
-      statement: `WPW pattern (PR ${Math.round(input.pr)} ms, QRS ${Math.round(input.qrs)} ms, delta wave present)`,
+      code: 'VENTRICULAR_PREEXCITATION',
+      statement: `Ventricular pre-excitation pattern (short PR ${Math.round(input.pr)} ms, wide QRS ${Math.round(input.qrs)} ms, delta wave reported)`,
       severity: 'abnormal',
       category: 'conduction',
       evidence: {
@@ -111,18 +118,17 @@ export function analyzePreexcitation(
       },
       ageAdjusted: true,
       pediatricSpecific: true,
-      confidence: 0.9,
+      confidence: 0.8,
       clinicalNote:
-        'AVOID AV nodal blocking agents (digoxin, verapamil, diltiazem, adenosine) if AF develops. ' +
-        'Consider electrophysiology study for risk stratification. ' +
-        'Pre-anesthesia evaluation recommended.',
+        'Confirm delta-wave morphology and lead placement on the source ECG; this automated pattern does not diagnose an accessory-pathway syndrome. ' +
+        'Urgent expert management is required for an irregular wide-complex tachycardia; AV nodal blockade can be dangerous when pre-excited atrial fibrillation is present.',
     });
   }
   // Possible WPW: Short PR + Wide QRS (no delta wave data available)
   else if (shortPR && wideQRS && input.deltaWaveDetected === undefined) {
     findings.push({
-      code: 'WPW',
-      statement: `Possible WPW pattern (PR ${Math.round(input.pr)} ms, QRS ${Math.round(input.qrs)} ms)`,
+      code: 'POSSIBLE_PREEXCITATION',
+      statement: `Short PR with wide QRS; ventricular pre-excitation cannot be assessed without delta-wave morphology`,
       severity: 'borderline',
       category: 'conduction',
       evidence: {
@@ -134,31 +140,28 @@ export function analyzePreexcitation(
       },
       ageAdjusted: true,
       pediatricSpecific: true,
-      confidence: 0.7,
+      confidence: 0.4,
       clinicalNote:
-        'Short PR with wide QRS suggests possible pre-excitation. ' +
-        'Examine QRS morphology for delta wave. ' +
-        'Consider repeat ECG and cardiology referral if suspected.',
+        'This interval combination is nonspecific. Review the original 12-lead ECG for a delta wave, artifact, and alternative causes of QRS widening.',
     });
   }
-  // Short PR only without wide QRS - could be LGL or enhanced AV conduction
+  // Short PR alone is nonspecific; the obsolete Lown-Ganong-Levine label is
+  // deliberately not assigned.
   else if (shortPR && !wideQRS && input.pr < 80) {
     // Only flag very short PR (likely <80ms represents true pre-excitation vs normal variant)
     findings.push({
       code: 'PR_SHORT',
-      statement: `Very short PR interval (${Math.round(input.pr)} ms) - consider enhanced AV conduction`,
+      statement: `Very short PR interval (${Math.round(input.pr)} ms); morphology review required`,
       severity: 'borderline',
       category: 'intervals',
       evidence: {
         pr: Math.round(input.pr),
         qrs: Math.round(input.qrs),
-        pattern: 'LGL_or_enhanced_AVN',
+        pattern: 'short_pr_nonspecific',
       },
       ageAdjusted: true,
       confidence: 0.75,
-      clinicalNote:
-        'Very short PR without wide QRS may represent Lown-Ganong-Levine pattern ' +
-        'or enhanced AV nodal conduction. Clinical correlation recommended.',
+      clinicalNote: 'A short PR without a delta wave does not establish an accessory pathway.',
     });
   }
   // Wide QRS with normal PR - could be bundle branch block or other cause
@@ -167,20 +170,18 @@ export function analyzePreexcitation(
     // We only add a note if delta wave is detected without short PR (Mahaim fiber)
     if (deltaWave) {
       findings.push({
-        code: 'WPW',
-        statement: `Atypical pre-excitation pattern (QRS ${Math.round(input.qrs)} ms, delta wave without short PR)`,
+        code: 'POSSIBLE_PREEXCITATION',
+        statement: `Reported delta wave with wide QRS but without short PR; morphology review required`,
         severity: 'borderline',
         category: 'conduction',
         evidence: {
           pr: Math.round(input.pr),
           qrs: Math.round(input.qrs),
-          pattern: 'possible_Mahaim_fiber',
+          pattern: 'discordant_preexcitation_features',
         },
         ageAdjusted: true,
         confidence: 0.6,
-        clinicalNote:
-          'Wide QRS with delta wave but normal PR suggests possible Mahaim fiber ' +
-          '(atriofascicular pathway). Electrophysiology evaluation may be indicated.',
+        clinicalNote: 'Discordant automated features are insufficient to identify a pathway; verify the original tracing.',
       });
     }
   }

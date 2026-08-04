@@ -78,6 +78,15 @@ export { XAIProvider, EnsembleProvider, createEnsembleProvider } from './ai/ense
 export { createAIProvider, getEnvApiKey, getDefaultModel } from './ai';
 export type { AIProvider, AIProviderType } from './ai';
 export type { EnsembleConfig } from './ai/ensemble';
+export {
+  AI_PROVIDER_DESTINATIONS,
+  AITransmissionBlockedError,
+} from './ai/privacy';
+export type {
+  AITransmissionAuthorization,
+  AITransmissionAuthorizationRequest,
+  ExternalAIProvider,
+} from './ai/privacy';
 
 // Configuration
 export {

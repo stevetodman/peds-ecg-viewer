@@ -21,11 +21,11 @@ describe('Pre-excitation (WPW) Analyzer', () => {
       );
 
       expect(findings).toHaveLength(1);
-      expect(findings[0].code).toBe('WPW');
+      expect(findings[0].code).toBe('VENTRICULAR_PREEXCITATION');
       expect(findings[0].severity).toBe('abnormal');
-      expect(findings[0].statement).toContain('WPW pattern');
-      expect(findings[0].statement).toContain('delta wave present');
-      expect(findings[0].clinicalNote).toContain('AVOID AV nodal blocking agents');
+      expect(findings[0].statement).toContain('pre-excitation pattern');
+      expect(findings[0].statement).toContain('delta wave reported');
+      expect(findings[0].clinicalNote).toContain('does not diagnose');
     });
 
     it('should use age-adjusted thresholds for infants', () => {
@@ -42,7 +42,7 @@ describe('Pre-excitation (WPW) Analyzer', () => {
       );
 
       expect(findings).toHaveLength(1);
-      expect(findings[0].code).toBe('WPW');
+      expect(findings[0].code).toBe('VENTRICULAR_PREEXCITATION');
     });
 
     it('should use stricter thresholds for older children', () => {
@@ -59,7 +59,7 @@ describe('Pre-excitation (WPW) Analyzer', () => {
       );
 
       expect(findings).toHaveLength(1);
-      expect(findings[0].code).toBe('WPW');
+      expect(findings[0].code).toBe('VENTRICULAR_PREEXCITATION');
     });
   });
 
@@ -76,9 +76,9 @@ describe('Pre-excitation (WPW) Analyzer', () => {
       );
 
       expect(findings).toHaveLength(1);
-      expect(findings[0].code).toBe('WPW');
+      expect(findings[0].code).toBe('POSSIBLE_PREEXCITATION');
       expect(findings[0].severity).toBe('borderline');
-      expect(findings[0].statement).toContain('Possible WPW');
+      expect(findings[0].statement).toContain('pre-excitation cannot be assessed');
       expect(findings[0].confidence).toBeLessThan(0.8);
     });
   });
@@ -98,7 +98,7 @@ describe('Pre-excitation (WPW) Analyzer', () => {
       expect(findings).toHaveLength(1);
       expect(findings[0].code).toBe('PR_SHORT');
       expect(findings[0].statement).toContain('Very short PR');
-      expect(findings[0].clinicalNote).toContain('Lown-Ganong-Levine');
+      expect(findings[0].clinicalNote).toContain('does not establish');
     });
 
     it('should not flag mildly short PR without wide QRS', () => {
@@ -130,9 +130,9 @@ describe('Pre-excitation (WPW) Analyzer', () => {
       );
 
       expect(findings).toHaveLength(1);
-      expect(findings[0].code).toBe('WPW');
-      expect(findings[0].statement).toContain('Atypical pre-excitation');
-      expect(findings[0].evidence?.pattern).toBe('possible_Mahaim_fiber');
+      expect(findings[0].code).toBe('POSSIBLE_PREEXCITATION');
+      expect(findings[0].statement).toContain('morphology review required');
+      expect(findings[0].evidence?.pattern).toBe('discordant_preexcitation_features');
     });
   });
 
@@ -193,7 +193,7 @@ describe('Pre-excitation (WPW) Analyzer', () => {
         ageDays
       );
 
-      const wpwFinding = result.findings.find(f => f.code === 'WPW');
+      const wpwFinding = result.findings.find(f => f.code === 'VENTRICULAR_PREEXCITATION');
       expect(wpwFinding).toBeDefined();
       expect(wpwFinding?.severity).toBe('abnormal');
       expect(result.summary.conclusion).toBe('Abnormal ECG');

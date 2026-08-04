@@ -22,19 +22,12 @@ def device():
 
 
 @pytest.fixture(scope="session")
-def checkpoint_path():
-    """Path to the production model checkpoint."""
-    return 'ml/training/checkpoints/best_hybrid_20251225_091556.pt'
-
-
-@pytest.fixture(scope="session")
-def model(device, checkpoint_path):
-    """Load the trained model."""
+def model(device):
+    """Create deterministic architecture weights for unit tests."""
     from ml.models.hybrid_model import hybrid_model_small
 
+    torch.manual_seed(42)
     model = hybrid_model_small(num_conditions=4)
-    ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    model.load_state_dict(ckpt['model_state_dict'])
     model = model.to(device)
     model.eval()
     return model

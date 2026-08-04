@@ -10,6 +10,7 @@ import type { AIAnalysisResult } from '../types';
 import type { XAIResponse } from './api-types';
 import { AnthropicProvider } from './anthropic';
 import { OpenAIProvider } from './openai';
+import type { AITransmissionAuthorizationRequest } from './privacy';
 
 /**
  * Configuration for xAI/Grok provider
@@ -57,6 +58,7 @@ export interface EnsembleConfig {
  */
 export class XAIProvider extends BaseAIProvider {
   name = 'xai';
+  readonly privacyProvider = 'xai' as const;
 
   constructor(apiKey: string, model?: string) {
     super(apiKey, model);
@@ -164,20 +166,44 @@ export class EnsembleProvider implements AIProvider {
     }
   }
 
-  async analyze(image: ImageData): Promise<AIAnalysisResult> {
+  async analyze(
+    image: ImageData,
+    authorization?: AITransmissionAuthorizationRequest,
+  ): Promise<AIAnalysisResult> {
     const startTime = Date.now();
 
     if (this.config.parallel) {
-      return this.analyzeParallel(image, startTime);
+      return this.analyzeParallel(image, startTime, authorization);
     } else {
-      return this.analyzeSequential(image, startTime);
+      return this.analyzeSequential(image, startTime, authorization);
     }
+  }
+
+  /** Use one custom prompt consistently across all selected providers. */
+  async analyzeWithPrompt(
+    image: ImageData | Blob | string,
+    prompt: string,
+    authorization?: AITransmissionAuthorizationRequest,
+  ): Promise<AIAnalysisResult> {
+    if (typeof image === 'string' || (typeof Blob !== 'undefined' && image instanceof Blob)) {
+      throw new Error('EnsembleProvider requires ImageData input');
+    }
+    const imageData = image as ImageData;
+    const startTime = Date.now();
+    return this.config.parallel
+      ? this.analyzeParallel(imageData, startTime, authorization, prompt)
+      : this.analyzeSequential(imageData, startTime, authorization, prompt);
   }
 
   /**
    * Run providers sequentially - stop when confidence is high enough
    */
-  private async analyzeSequential(image: ImageData, startTime: number): Promise<AIAnalysisResult> {
+  private async analyzeSequential(
+    image: ImageData,
+    startTime: number,
+    authorization?: AITransmissionAuthorizationRequest,
+    prompt?: string,
+  ): Promise<AIAnalysisResult> {
     const order = [this.config.primary, ...this.config.fallbacks];
     let bestResult: AIAnalysisResult | null = null;
 
@@ -186,7 +212,9 @@ export class EnsembleProvider implements AIProvider {
       if (!provider) continue;
 
       try {
-        const result = await provider.analyze(image);
+        const result = prompt
+          ? await provider.analyzeWithPrompt(image, prompt, authorization)
+          : await provider.analyze(image, authorization);
 
         if (result.confidence >= this.config.minConfidence) {
           // Good enough, return immediately
@@ -221,7 +249,12 @@ export class EnsembleProvider implements AIProvider {
   /**
    * Run providers in parallel - select best result
    */
-  private async analyzeParallel(image: ImageData, startTime: number): Promise<AIAnalysisResult> {
+  private async analyzeParallel(
+    image: ImageData,
+    startTime: number,
+    authorization?: AITransmissionAuthorizationRequest,
+    prompt?: string,
+  ): Promise<AIAnalysisResult> {
     const order = [this.config.primary, ...this.config.fallbacks];
     const activeProviders = order
       .map(name => this.providers.get(name))
@@ -233,7 +266,9 @@ export class EnsembleProvider implements AIProvider {
 
     // Run all providers in parallel
     const results = await Promise.allSettled(
-      activeProviders.map(p => p.analyze(image))
+      activeProviders.map((provider) => prompt
+        ? provider.analyzeWithPrompt(image, prompt, authorization)
+        : provider.analyze(image, authorization))
     );
 
     // Find best successful result

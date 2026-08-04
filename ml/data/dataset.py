@@ -20,6 +20,8 @@ try:
 except ImportError:
     WFDB_AVAILABLE = False
 
+from ml.data.preprocessing import TARGET_SAMPLES, preprocess_ecg
+
 
 # Standard 12-lead order
 LEAD_ORDER = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6']
@@ -41,11 +43,13 @@ def has_chd(icd_codes: List[str]) -> bool:
     )
 
 
-def has_any_abnormality(aha_codes_str: str) -> bool:
+def has_any_abnormality(aha_codes_str: str) -> Optional[bool]:
     """Check if ECG is abnormal (not A1 or A2)."""
     if pd.isna(aha_codes_str):
-        return True  # Assume abnormal if unknown
+        return None
     codes = re.findall(r"'([^']+)'", str(aha_codes_str))
+    if not codes:
+        return None
     base_codes = [c.split('+')[0] for c in codes]
     return 'A1' not in base_codes and 'A2' not in base_codes
 
@@ -81,6 +85,16 @@ class ZZUDataset(Dataset):
         self.target_leads = target_leads
         self.augmentor = augmentor
 
+        if task not in {'chd', 'abnormal'}:
+            raise ValueError("task must be either 'chd' or 'abnormal'")
+        if target_length != TARGET_SAMPLES:
+            raise ValueError(
+                f"target_length must be {TARGET_SAMPLES}; changing model duration "
+                "requires a new preprocessing version"
+            )
+        if target_leads != len(LEAD_ORDER):
+            raise ValueError("the model requires the standard 12-lead layout")
+
         # Load metadata
         csv_path = self.data_dir / "AttributesDictionary.csv"
         df = pd.read_csv(csv_path)
@@ -90,6 +104,8 @@ class ZZUDataset(Dataset):
         df['icd_codes'] = df['ICD-10 code'].apply(parse_icd_codes)
         df['has_chd'] = df['icd_codes'].apply(has_chd)
         df['is_abnormal'] = df['AHA_code'].apply(has_any_abnormality)
+        if task == 'abnormal':
+            df = df[df['is_abnormal'].notna()].copy()
 
         # Patient-level split
         patients = df['Patient_ID'].unique()
@@ -124,17 +140,8 @@ class ZZUDataset(Dataset):
         filepath = str(self.ecg_dir / row['Filename'])
         signal, fs, lead_names = self._load_ecg(filepath)
 
-        if signal is None:
-            # Return zeros if load fails
-            signal = np.zeros((self.target_leads, self.target_length), dtype=np.float32)
-        else:
-            # Reorder leads to standard order and pad missing
-            signal = self._standardize_leads(signal, lead_names)
-            # Resample to target length
-            signal = self._resample(signal, fs)
-
-        # Normalize
-        signal = self._normalize(signal)
+        signal = self._standardize_leads(signal, lead_names)
+        signal = preprocess_ecg(signal, fs, input_unit="mv")
 
         # Apply augmentation (training only)
         if self.augmentor is not None:
@@ -156,15 +163,18 @@ class ZZUDataset(Dataset):
             meta
         )
 
-    def _load_ecg(self, filepath: str) -> Optional[Tuple[np.ndarray, int, List[str]]]:
+    def _load_ecg(self, filepath: str) -> Tuple[np.ndarray, int, List[str]]:
         """Load ECG from WFDB format."""
         if not WFDB_AVAILABLE:
-            return None
+            raise RuntimeError("wfdb is required to load the ZZU-pECG dataset")
         try:
             record = wfdb.rdrecord(filepath)
-            return record.p_signal.T, record.fs, record.sig_name
-        except:
-            return None
+        except Exception as exc:
+            raise RuntimeError(f"failed to load ECG record: {filepath}") from exc
+        signal = np.asarray(record.p_signal, dtype=np.float32).T
+        if not np.isfinite(signal).all():
+            raise RuntimeError(f"ECG record contains non-finite values: {filepath}")
+        return signal, int(record.fs), list(record.sig_name)
 
     def _standardize_leads(
         self,
@@ -181,34 +191,6 @@ class ZZUDataset(Dataset):
                 standardized[i] = signal[src_idx]
 
         return standardized
-
-    def _resample(self, signal: np.ndarray, fs: int) -> np.ndarray:
-        """Resample signal to target length."""
-        n_leads, n_samples = signal.shape
-
-        if n_samples == self.target_length:
-            return signal
-
-        # Simple linear interpolation
-        x_old = np.linspace(0, 1, n_samples)
-        x_new = np.linspace(0, 1, self.target_length)
-
-        resampled = np.zeros((n_leads, self.target_length), dtype=np.float32)
-        for i in range(n_leads):
-            resampled[i] = np.interp(x_new, x_old, signal[i])
-
-        return resampled
-
-    def _normalize(self, signal: np.ndarray) -> np.ndarray:
-        """Z-score normalize each lead."""
-        for i in range(signal.shape[0]):
-            lead = signal[i]
-            std = lead.std()
-            if std > 1e-6:
-                signal[i] = (lead - lead.mean()) / std
-            else:
-                signal[i] = lead - lead.mean()
-        return signal
 
     def get_class_weights(self) -> torch.Tensor:
         """Get class weights for imbalanced data."""

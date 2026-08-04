@@ -430,16 +430,44 @@ export function classifyValue(
   normalRange: NormalRange,
   strictness: 'lenient' | 'standard' | 'strict' = 'standard'
 ): 'low' | 'borderline_low' | 'normal' | 'borderline_high' | 'high' {
-  // Adjust thresholds based on strictness
-  const factor = strictness === 'lenient' ? 0.95 : strictness === 'strict' ? 1.0 : 0.98;
-  const lowThreshold = normalRange.p2 * (2 - factor); // Slightly lower for lenient
-  const highThreshold = normalRange.p98 * factor;
+  if (!Number.isFinite(value)) {
+    throw new TypeError('Measured value must be finite');
+  }
+  if (
+    !Number.isFinite(normalRange.p2) ||
+    !Number.isFinite(normalRange.p50) ||
+    !Number.isFinite(normalRange.p98) ||
+    normalRange.p2 > normalRange.p50 ||
+    normalRange.p50 > normalRange.p98
+  ) {
+    throw new TypeError('Normal range must contain ordered, finite p2/p50/p98 values');
+  }
+  if (strictness !== 'lenient' && strictness !== 'standard' && strictness !== 'strict') {
+    throw new TypeError('Strictness must be lenient, standard, or strict');
+  }
+
+  // Apply the tolerance to the *reference interval*, rather than multiplying
+  // each endpoint. Multiplication reverses the intended direction for
+  // negative limits and has no effect at zero (both occur in axis/voltage
+  // tables). Published p2/p98 are the standard limits; lenient expands and
+  // strict contracts them by 5% of the p2--p98 span.
+  const range = normalRange.p98 - normalRange.p2;
+  const tolerance = range * 0.05;
+  const lowThreshold = strictness === 'lenient'
+    ? normalRange.p2 - tolerance
+    : strictness === 'strict'
+      ? normalRange.p2 + tolerance
+      : normalRange.p2;
+  const highThreshold = strictness === 'lenient'
+    ? normalRange.p98 + tolerance
+    : strictness === 'strict'
+      ? normalRange.p98 - tolerance
+      : normalRange.p98;
 
   if (value < lowThreshold) return 'low';
   if (value > highThreshold) return 'high';
 
   // Borderline zones: within 10% of limits
-  const range = normalRange.p98 - normalRange.p2;
   const borderlineWidth = range * 0.1;
 
   if (value < normalRange.p2 + borderlineWidth) return 'borderline_low';
@@ -458,8 +486,13 @@ export function classifyValue(
 export function estimatePercentile(value: number, normalRange: NormalRange): number {
   const { p2, p50, p98 } = normalRange;
 
+  if (!Number.isFinite(value) || p2 > p50 || p50 > p98) {
+    throw new TypeError('Value and normal range must be finite and ordered');
+  }
+
   if (value <= p2) {
     // Below 2nd percentile - estimate 0-2
+    if (value === p2 || p2 === 0) return 2;
     const ratio = value / p2;
     return Math.max(0, ratio * 2);
   }

@@ -3,7 +3,12 @@
  * @module interpretation/interpret-ecg
  */
 
-import { ECGInterpretation, InterpretationFinding } from '../types/interpretation';
+import {
+  ECGInterpretation,
+  InterpretationFinding,
+  RhythmDescription,
+} from '../types/interpretation';
+import type { MeasurementProvenance } from '../signal/analysis/ecg-measurements';
 import { getNormalsForAge, AgeNormals } from '../data/pediatricNormals';
 import { isPediatric } from '../data/ageGroups';
 import {
@@ -25,15 +30,16 @@ import { combineFindings } from './summary';
  * ECG measurements from signal analysis
  */
 export interface ECGMeasurements {
-  hr: number;       // Heart rate (bpm)
-  rr: number;       // R-R interval (ms)
-  pr: number;       // PR interval (ms)
-  qrs: number;      // QRS duration (ms)
-  qt: number;       // QT interval (ms)
-  qtc: number;      // Corrected QT (Bazett)
-  pAxis: number;    // P wave axis (degrees)
-  qrsAxis: number;  // QRS axis (degrees)
-  tAxis: number;    // T wave axis (degrees)
+  hr: number | null;       // Heart rate (bpm)
+  rr: number | null;       // R-R interval (ms)
+  pr: number | null;       // PR interval (ms)
+  qrs: number | null;      // QRS duration (ms)
+  qt: number | null;       // QT interval (ms)
+  qtc: number | null;      // Corrected QT (Bazett)
+  pAxis: number | null;    // P wave axis (degrees)
+  qrsAxis: number | null;  // QRS axis (degrees)
+  tAxis: number | null;    // T wave axis (degrees)
+  provenance?: MeasurementProvenance;
 }
 
 /**
@@ -49,11 +55,14 @@ export interface InterpretationInput {
   /** Optional T-wave polarity in V1 for age-specific assessment */
   tWaveV1Polarity?: TWavePolarity;
 
-  /** Optional pre-excitation/WPW detection input */
+  /** Optional pre-excitation pattern evidence */
   preexcitation?: Partial<PreexcitationInput>;
 
   /** Optional Brugada pattern detection input */
   brugada?: BrugadaInput;
+
+  /** Independently assessed rhythm evidence; omitted means rhythm is unknown. */
+  rhythm?: Partial<RhythmDescription>;
 }
 
 /**
@@ -83,6 +92,27 @@ const DEFAULT_OPTIONS: InterpretationOptions = {
   version: 'peds-ecg-viewer v0.1.0',
 };
 
+const MEASUREMENT_FIELDS = [
+  'hr', 'rr', 'pr', 'qrs', 'qt', 'qtc', 'pAxis', 'qrsAxis', 'tAxis',
+] as const;
+
+/**
+ * Preserve the source boundary when consumers supply measurements directly.
+ * Historical callers did not include provenance, so label these as reported
+ * rather than silently upgrading them to detector output.
+ */
+function ensureMeasurementProvenance(measurements: ECGMeasurements): MeasurementProvenance {
+  if (measurements.provenance) return measurements.provenance;
+
+  return Object.fromEntries(MEASUREMENT_FIELDS.map(field => {
+    const value = measurements[field];
+    return [field, value === null || !Number.isFinite(value)
+      ? { source: 'unavailable' as const, method: 'caller-supplied', reason: 'No value supplied' }
+      : { source: 'reported' as const, method: 'caller-supplied', reason: 'Source provenance was not supplied' },
+    ];
+  })) as MeasurementProvenance;
+}
+
 /**
  * Filter findings by confidence threshold
  */
@@ -99,8 +129,9 @@ function filterByConfidence(
  */
 function removeClinicalNotes(findings: InterpretationFinding[]): InterpretationFinding[] {
   return findings.map(f => {
-    const { clinicalNote, ...rest } = f;
-    return rest as InterpretationFinding;
+    const finding = { ...f };
+    delete finding.clinicalNote;
+    return finding;
   });
 }
 
@@ -136,6 +167,7 @@ export function interpretECG(
 ): ECGInterpretation {
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const { measurements, voltages, tWaveV1Polarity } = input;
+  const measurementProvenance = ensureMeasurementProvenance(measurements);
 
   // Get age-adjusted normal values
   const normals: AgeNormals = getNormalsForAge(ageDays);
@@ -144,7 +176,8 @@ export function interpretECG(
   let findings: InterpretationFinding[] = [];
 
   // 1. Rate analysis
-  findings.push(...analyzeRate(measurements.hr, normals.heartRate, ageDays));
+  const strictness = opts.strictMode ? 'strict' : 'standard';
+  findings.push(...analyzeRate(measurements.hr, normals.heartRate, ageDays, strictness));
 
   // 2. Axis analysis
   findings.push(...analyzeAxis(measurements.qrsAxis, normals.qrsAxis, ageDays));
@@ -161,7 +194,8 @@ export function interpretECG(
         qrsDuration: normals.qrsDuration,
         qtcBazett: normals.qtcBazett,
       },
-      ageDays
+      ageDays,
+      strictness
     )
   );
 
@@ -197,7 +231,7 @@ export function interpretECG(
     )
   );
 
-  // 6. Pre-excitation (WPW) analysis
+  // 6. Pre-excitation pattern analysis
   // Always run with PR and QRS from measurements; delta wave info is optional
   findings.push(
     ...analyzePreexcitation(
@@ -216,6 +250,24 @@ export function interpretECG(
     findings.push(...analyzeBrugada(input.brugada, ageDays));
   }
 
+  const missingRequired: string[] = [];
+  if (measurements.hr === null) missingRequired.push('heart rate');
+  if (measurements.qrs === null) missingRequired.push('QRS duration');
+  if (measurements.qtc === null) missingRequired.push('QTc');
+  if (measurements.qrsAxis === null) missingRequired.push('QRS axis');
+  if (!input.rhythm) missingRequired.push('rhythm assessment');
+  if (missingRequired.length > 0) {
+    findings.push({
+      code: 'ANALYSIS_INCOMPLETE',
+      statement: `Analysis incomplete: ${missingRequired.join(', ')} unavailable`,
+      severity: 'borderline',
+      category: 'other',
+      evidence: { missing: missingRequired.join(', ') },
+      confidence: 1,
+      clinicalNote: 'Do not use an inconclusive automated result to exclude ECG pathology; review the original tracing.',
+    });
+  }
+
   // Apply confidence filter
   findings = filterByConfidence(findings, opts.confidenceThreshold ?? 0);
 
@@ -225,7 +277,11 @@ export function interpretECG(
   }
 
   // Generate summary
-  const { summary, rhythm, orderedFindings } = combineFindings(findings, measurements.hr);
+  const { summary, rhythm, orderedFindings } = combineFindings(
+    findings,
+    measurements.hr,
+    input.rhythm
+  );
 
   // Build final interpretation
   const interpretation: ECGInterpretation = {
@@ -238,6 +294,7 @@ export function interpretECG(
     interpretedBy: opts.version ?? 'peds-ecg-viewer',
     patientAgeDays: ageDays,
     pediatricInterpretation: isPediatric(ageDays),
+    measurementProvenance,
     rawStatements: orderedFindings
       .filter(f => f.severity !== 'normal')
       .map(f => f.statement),
@@ -250,6 +307,7 @@ export function interpretECG(
  * Calculate overall interpretation confidence
  */
 function calculateOverallConfidence(findings: InterpretationFinding[]): number {
+  if (findings.some(f => f.code === 'ANALYSIS_INCOMPLETE')) return 0;
   if (findings.length === 0) return 0.5;
 
   const confidences = findings.map(f => f.confidence ?? 0.8);

@@ -56,7 +56,10 @@ const DEFAULT_OPTIONS: Required<ReconstructorOptions> = {
   targetSampleRate: 500,
   removeDC: true,
   interpolation: 'linear',
-  enhancedFiltering: true,
+  // Preserve the measured waveform by default. Consumers processing noisy
+  // scans can opt in to denoising; automatic smoothing can attenuate narrow
+  // QRS peaks and distort morphology in otherwise clean digitizations.
+  enhancedFiltering: false,
   denoiseLevel: 0.3,
 };
 
@@ -280,6 +283,13 @@ export class SignalReconstructor {
     const candidates: CalibrationResult[] = [];
     const { largeBoxesPerPanel, visualHeartRateEstimate, pxPerMm: aiPxPerMm } = this.gridInfo;
     const aiPaperSpeed = this.calibration.paperSpeed;
+
+    // A supplied calibration is measured/confirmed metadata. It must take
+    // precedence over timing heuristics, which can be misled by a short panel
+    // or a single visible beat and materially distort waveform morphology.
+    if (aiPxPerMm && aiPxPerMm > 0 && aiPaperSpeed > 0) {
+      return { pxPerMm: aiPxPerMm, paperSpeed: aiPaperSpeed, method: 'provided_calibration' };
+    }
 
     // Strategy 1: Grid box counting (most reliable when available)
     if (largeBoxesPerPanel && largeBoxesPerPanel > 0 && panelStats.avgWidth > 0) {

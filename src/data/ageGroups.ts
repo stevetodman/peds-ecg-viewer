@@ -164,6 +164,24 @@ export const AGE_GROUPS: readonly AgeGroup[] = [
   },
 ] as const;
 
+/** Exclusive upper bound of the pediatric reference population. */
+export const MAX_PEDIATRIC_AGE_DAYS = 6575;
+
+/**
+ * Validate an age before selecting pediatric reference data.
+ *
+ * The tables in this package do not contain prenatal or adult reference
+ * intervals. Clamping either population to the nearest pediatric group would
+ * create a plausible-looking but clinically unsupported interpretation.
+ */
+export function assertValidPediatricAge(ageDays: number): void {
+  if (!Number.isFinite(ageDays) || ageDays < 0 || ageDays >= MAX_PEDIATRIC_AGE_DAYS) {
+    throw new RangeError(
+      `ageDays must be a finite value from 0 through ${MAX_PEDIATRIC_AGE_DAYS - 1}`
+    );
+  }
+}
+
 /**
  * Map of age group IDs for quick lookup
  */
@@ -177,17 +195,13 @@ export const AGE_GROUP_MAP: ReadonlyMap<string, AgeGroup> = new Map(
  * @returns The matching age group
  */
 export function getAgeGroup(ageDays: number): AgeGroup {
-  // Handle negative ages (shouldn't happen, but be safe)
-  if (ageDays < 0) {
-    return AGE_GROUPS[0];
-  }
+  assertValidPediatricAge(ageDays);
 
   // Find matching group
   const group = AGE_GROUPS.find(g => ageDays >= g.minDays && ageDays < g.maxDays);
 
-  // If beyond 18 years, return the last group
   if (!group) {
-    return AGE_GROUPS[AGE_GROUPS.length - 1];
+    throw new RangeError(`No pediatric reference group contains ageDays=${ageDays}`);
   }
 
   return group;
@@ -234,7 +248,7 @@ export function isInfant(ageDays: number): boolean {
  * Check if patient is pediatric (<18 years)
  */
 export function isPediatric(ageDays: number): boolean {
-  return ageDays < 6575; // 18 years in days
+  return Number.isFinite(ageDays) && ageDays >= 0 && ageDays < MAX_PEDIATRIC_AGE_DAYS;
 }
 
 /**
@@ -251,6 +265,9 @@ export function ageToDays(
   value: number,
   unit: 'days' | 'weeks' | 'months' | 'years'
 ): number {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new RangeError('Age must be a finite, non-negative value');
+  }
   switch (unit) {
     case 'days':
       return value;
@@ -260,5 +277,9 @@ export function ageToDays(
       return Math.round(value * 30.44); // Average days per month
     case 'years':
       return Math.round(value * 365.25); // Account for leap years
+    default:
+      // Keep the runtime boundary strict even when this function is called
+      // from untyped JavaScript.
+      throw new RangeError(`Unsupported age unit: ${String(unit)}`);
   }
 }

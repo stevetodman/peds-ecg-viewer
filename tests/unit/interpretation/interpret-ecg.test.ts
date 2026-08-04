@@ -32,9 +32,9 @@ describe('interpretECG', () => {
 
       const result = interpretECG(input, ageDays);
 
-      expect(result.summary.conclusion).toBe('Normal ECG');
+      expect(result.summary.conclusion).toBe('Inconclusive');
       expect(result.summary.urgency).toBe('routine');
-      expect(result.summary.recommendReview).toBe(false);
+      expect(result.summary.recommendReview).toBe(true);
     });
 
     it('should include rhythm description', () => {
@@ -49,6 +49,8 @@ describe('interpretECG', () => {
       // Rhythm object contains name, ventricularRate, regular
       expect(result.rhythm.name).toBeDefined();
       expect(result.rhythm.ventricularRate).toBe(80);
+      expect(result.rhythm.origin).toBe('unknown');
+      expect(result.rhythm.regular).toBeNull();
     });
 
     it('should include normal findings in output', () => {
@@ -76,7 +78,7 @@ describe('interpretECG', () => {
       const result = interpretECG(input, ageDays);
 
       expect(result.summary.conclusion).not.toBe('Normal ECG');
-      const tachyFinding = result.findings.find(f => f.code === 'SINUS_TACHYCARDIA');
+      const tachyFinding = result.findings.find(f => f.code === 'RATE_HIGH');
       expect(tachyFinding).toBeDefined();
     });
 
@@ -117,14 +119,14 @@ describe('interpretECG', () => {
     it('should return borderline for minor abnormalities', () => {
       const input: InterpretationInput = {
         measurements: createMeasurements({
-          qtc: 455,
+          qtc: 440,
         }),
       };
       const ageDays = ageToDays(10, 'years');
 
       const result = interpretECG(input, ageDays);
 
-      expect(result.summary.conclusion).toBe('Borderline ECG');
+      expect(result.summary.conclusion).toBe('Inconclusive');
       // Note: borderline QTc uses code QTC_BORDERLINE, not QTC_PROLONGED
       const qtcFinding = result.findings.find(f => f.code === 'QTC_BORDERLINE');
       expect(qtcFinding?.severity).toBe('borderline');
@@ -152,7 +154,7 @@ describe('interpretECG', () => {
       const adolescentRateFinding = adolescentResult.findings.find(f => f.category === 'rate');
 
       expect(neonateRateFinding?.code).toBe('RATE_NORMAL');
-      expect(adolescentRateFinding?.code).toBe('SINUS_TACHYCARDIA');
+      expect(adolescentRateFinding?.code).toBe('RATE_HIGH');
     });
 
     it('should apply ageAdjusted flag to findings', () => {

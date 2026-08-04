@@ -24,11 +24,12 @@ function normalizeAxis(axis: number): number {
  * @returns Axis-related findings
  */
 export function analyzeAxis(
-  qrsAxis: number,
+  qrsAxis: number | null,
   qrsAxisNormals: NormalRange,
   ageDays: number
 ): InterpretationFinding[] {
   const findings: InterpretationFinding[] = [];
+  if (qrsAxis === null || !Number.isFinite(qrsAxis)) return findings;
   const normalizedAxis = normalizeAxis(qrsAxis);
 
   const { p2: lowerLimit, p98: upperLimit } = qrsAxisNormals;

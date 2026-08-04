@@ -35,21 +35,17 @@ export class BaselineDetector {
   private height: number;
   private data: Uint8ClampedArray;
   private darknessThreshold: number;
-  private waveformColor?: { r: number; g: number; b: number };
-  private useStrictColorMatching: boolean;
 
   constructor(
     imageData: ImageData,
     darknessThreshold = 100,
-    waveformColor?: { r: number; g: number; b: number },
-    useStrictColorMatching = false
+    _waveformColor?: { r: number; g: number; b: number },
+    _useStrictColorMatching = false
   ) {
     this.width = imageData.width;
     this.height = imageData.height;
     this.data = imageData.data;
     this.darknessThreshold = darknessThreshold;
-    this.waveformColor = waveformColor;
-    this.useStrictColorMatching = useStrictColorMatching;
   }
 
   /**
