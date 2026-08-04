@@ -369,6 +369,153 @@ tbody tr:hover {
   overflow-wrap: anywhere;
 }
 
+.screenshot-workspace {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+  background: #f8fbfc;
+}
+
+.screenshot-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.screenshot-heading h3,
+.screenshot-heading p {
+  margin: 0;
+}
+
+.screenshot-heading h3 {
+  font-size: 1.05rem;
+}
+
+.screenshot-heading > p {
+  max-width: 43rem;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.screenshot-controls,
+.caliper-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.screenshot-controls label {
+  margin-left: 0.4rem;
+  font-weight: 700;
+}
+
+#screenshot-pixels-per-mm {
+  width: 6.8rem;
+  min-height: 2.25rem;
+}
+
+#screenshot-scale-help,
+.screenshot-status,
+#caliper-instructions {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.screenshot-status {
+  margin: 0.7rem 0;
+}
+
+.reference-image-stage {
+  display: grid;
+  min-height: 11rem;
+  max-height: 34rem;
+  place-items: center;
+  overflow: auto;
+  border: 1px dashed #8a9ba7;
+  border-radius: 0.45rem;
+  background: #eaf0f3;
+  cursor: crosshair;
+}
+
+#reference-image-placeholder {
+  margin: 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.reference-image-frame {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  line-height: 0;
+}
+
+#reference-image-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 33rem;
+  object-fit: contain;
+}
+
+.caliper-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.caliper-marker {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  width: 1.65rem;
+  height: 1.65rem;
+  place-items: center;
+  border: 2px solid white;
+  border-radius: 50%;
+  color: white;
+  font-size: 0.76rem;
+  font-weight: 900;
+  line-height: 1;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 35%);
+}
+
+.point-a {
+  background: #075985;
+}
+
+.point-b {
+  background: #9a3412;
+}
+
+.caliper-line {
+  position: absolute;
+  z-index: 1;
+  height: 2px;
+  transform-origin: 0 50%;
+  background: #17222c;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 75%);
+}
+
+.caliper-controls #caliper-instructions {
+  flex: 1 1 24rem;
+  margin: 0;
+}
+
+.manual-measurement {
+  display: block;
+  margin-top: 0.75rem;
+  padding: 0.7rem 0.8rem;
+  border-left: 3px solid var(--accent);
+  background: #eaf7fb;
+  color: #173747;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
 .field-label {
   display: block;
   margin-bottom: 0.18rem;
@@ -605,6 +752,25 @@ dialog::backdrop {
 
   .filter-bar {
     grid-template-columns: 1fr;
+  }
+
+  .screenshot-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .screenshot-controls button,
+  .caliper-controls button {
+    flex: 1 1 10rem;
+  }
+
+  .reference-image-stage {
+    min-height: 9rem;
+    max-height: 25rem;
+  }
+
+  #reference-image-preview {
+    max-height: 24rem;
   }
 
   .patient-grid {

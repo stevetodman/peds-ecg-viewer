@@ -92,6 +92,8 @@ async function expectDisabledControlReason(page: Page, control: string) {
   expect(await description.textContent(), `${control} description must match its disabled reason`).toBe(reason);
 }
 
+const TINY_PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9J8uYAAAAASUVORK5CYII=', 'base64');
+
 test('shows an unambiguous research boundary and never contains external analysis networking', async ({ page }) => {
   const networkAudit = await installSameOriginGuard(page);
   await openApp(page);
@@ -130,6 +132,44 @@ test('shows an unambiguous research boundary and never contains external analysi
   expect(source).not.toMatch(/(?:local|session)Storage|indexedDB/);
   expect(source).not.toMatch(/\.innerHTML\s*=|insertAdjacentHTML|\.outerHTML\s*=/);
   expect(source).not.toContain('pixel-perfect replica');
+});
+
+test('keeps a local screenshot in page memory and reports manual caliper geometry without interpretation', async ({ page }) => {
+  await openApp(page);
+  await page.getByRole('button', { name: 'Viewer' }).click();
+
+  await page.locator('#reference-image-input').setInputFiles({
+    name: 'reference.png',
+    mimeType: 'image/png',
+    buffer: TINY_PNG,
+  });
+  await expect(page.locator('#reference-image-status')).toContainText('reference.png is shown locally');
+  const preview = page.locator('#reference-image-preview');
+  await expect(preview).toHaveAttribute('src', /^blob:/);
+  await preview.evaluate((element) => { (element as HTMLImageElement).style.width = '240px'; });
+
+  const bounds = await preview.boundingBox();
+  expect(bounds).not.toBeNull();
+  await page.mouse.click(bounds!.x + 28, bounds!.y + 28);
+  await page.mouse.click(bounds!.x + 180, bounds!.y + 120);
+  await expect(page.locator('#manual-measurement')).toContainText('Manual interval:');
+  await expect(page.locator('#manual-measurement')).toContainText('Manual amplitude:');
+  await expect(page.locator('#manual-measurement')).toContainText('Derived rate:');
+  await expect(page.locator('#manual-measurement')).toContainText('not a diagnosis or rhythm conclusion');
+
+  await page.locator('#speed-select').selectOption('50');
+  await page.locator('#gain-select').selectOption('20');
+  await expect(page.locator('#manual-measurement')).toContainText('Derived rate:');
+
+  await page.locator('#reference-image-input').setInputFiles({
+    name: 'not-an-image.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from('{"not":"an image"}'),
+  });
+  await expect(page.locator('#status-region')).toContainText('could not be displayed as a supported image');
+  await page.getByRole('button', { name: 'Clear screenshot' }).click();
+  await expect(page.locator('#reference-image-frame')).toBeHidden();
+  await expect(page.locator('#reference-image-status')).toContainText('Nothing is retained outside this page');
 });
 
 test('classifies every visible control and gives every disabled control a reason', async ({ page }) => {
