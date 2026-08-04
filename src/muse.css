@@ -459,6 +459,19 @@ tbody tr:hover {
   object-fit: contain;
 }
 
+.auto-trace-overlay {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+.auto-trace-overlay:active {
+  cursor: grabbing;
+}
+
 .caliper-overlay {
   position: absolute;
   inset: 0;
@@ -514,6 +527,45 @@ tbody tr:hover {
   font-size: 0.9rem;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
+}
+
+.auto-trace-result {
+  display: grid;
+  grid-template-columns: minmax(12rem, 0.7fr) minmax(0, 1.3fr);
+  gap: 0.35rem 1rem;
+  margin-top: 0.8rem;
+  padding: 0.8rem;
+  border: 1px solid #7db5c4;
+  border-left: 4px solid #008ba8;
+  border-radius: 0.35rem;
+  background: #eefafd;
+}
+
+.auto-trace-result h4,
+.auto-trace-result p {
+  margin: 0;
+}
+
+.auto-trace-status {
+  color: #074a5b;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.auto-trace-evidence,
+.auto-trace-reasons,
+.auto-trace-limitation {
+  grid-column: 1 / -1;
+  color: #28454e;
+  font-size: 0.86rem;
+}
+
+.auto-trace-reasons {
+  font-weight: 700;
+}
+
+.auto-trace-limitation {
+  color: #4e5f65;
 }
 
 .field-label {
@@ -771,6 +823,10 @@ dialog::backdrop {
 
   #reference-image-preview {
     max-height: 24rem;
+  }
+
+  .auto-trace-result {
+    grid-template-columns: 1fr;
   }
 
   .patient-grid {

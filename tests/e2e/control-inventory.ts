@@ -8,7 +8,7 @@ export const CONTROL_INVENTORY = [
   'load-sample', 'save-memory-snapshot', 'restore-memory-snapshot', 'clear-memory-snapshot',
   'zoom-out', 'fit-waveform', 'zoom-in', 'toggle-grid', 'export-png', 'print-view',
   'paper-speed', 'gain', 'open-reference-image', 'clear-reference-image', 'screenshot-pixels-per-mm',
-  'reference-image-stage', 'select-caliper-a', 'select-caliper-b', 'reset-calipers', 'waveform-scroll-region',
+  'auto-trace-local', 'reset-auto-trace', 'reference-image-stage', 'select-caliper-a', 'select-caliper-b', 'reset-calipers', 'waveform-scroll-region',
   'clinical-signing', 'experimental-ml', 'image-digitization',
   'close-help', 'acknowledge-help',
 ] as const;
