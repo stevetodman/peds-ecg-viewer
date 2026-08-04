@@ -129,6 +129,43 @@
         <div><span class="field-label">Waveform</span><strong id="waveform-summary">Unavailable</strong></div>
       </div>
 
+      <section class="screenshot-workspace" aria-labelledby="screenshot-title">
+        <div class="screenshot-heading">
+          <div>
+            <p class="eyebrow">Local reference image</p>
+            <h3 id="screenshot-title">Manual screenshot calipers</h3>
+          </div>
+          <p>Manual geometric readout only. This tool does not digitize the image, analyze rhythm, or provide a clinical conclusion.</p>
+        </div>
+        <div class="screenshot-controls">
+          <input id="reference-image-input" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" hidden>
+          <button type="button" class="secondary-button" data-control="open-reference-image" id="open-reference-image">Choose local screenshot</button>
+          <button type="button" class="secondary-button" data-control="clear-reference-image" id="clear-reference-image">Clear screenshot</button>
+          <label for="screenshot-pixels-per-mm">Image scale</label>
+          <input id="screenshot-pixels-per-mm" data-control="screenshot-pixels-per-mm" type="number" min="0.1" max="10000" step="0.1" value="8" inputmode="decimal" aria-describedby="screenshot-scale-help">
+          <span id="screenshot-scale-help">image px/mm</span>
+        </div>
+        <p id="reference-image-status" class="screenshot-status" aria-live="polite">Choose a PNG, JPG, or WebP screenshot. It remains in this page’s memory only and is never uploaded.</p>
+        <div id="reference-image-stage" class="reference-image-stage" data-control="reference-image-stage" tabindex="0" role="group" aria-label="Manual caliper image workspace" aria-describedby="caliper-instructions">
+          <p id="reference-image-placeholder">No local screenshot selected.</p>
+          <div id="reference-image-frame" class="reference-image-frame" hidden>
+            <img id="reference-image-preview" alt="Local ECG screenshot for manual visual caliper placement">
+            <div id="caliper-overlay" class="caliper-overlay" aria-hidden="true" hidden>
+              <span id="caliper-line" class="caliper-line"></span>
+              <span id="caliper-point-a-marker" class="caliper-marker point-a">A</span>
+              <span id="caliper-point-b-marker" class="caliper-marker point-b">B</span>
+            </div>
+          </div>
+        </div>
+        <div class="caliper-controls" aria-label="Manual caliper controls">
+          <button type="button" class="secondary-button" data-control="select-caliper-a" id="select-caliper-a" aria-pressed="true">Place point A</button>
+          <button type="button" class="secondary-button" data-control="select-caliper-b" id="select-caliper-b" aria-pressed="false">Place point B</button>
+          <button type="button" class="secondary-button" data-control="reset-calipers" id="reset-calipers">Reset points</button>
+          <p id="caliper-instructions">Choose point A or B, then select its location on the screenshot. Paper speed and gain above, plus the image scale here, are used only for this manual calculation.</p>
+        </div>
+        <output id="manual-measurement" class="manual-measurement" aria-live="polite">Manual interval, amplitude, and derived rate will appear after both points are placed.</output>
+      </section>
+
       <div class="viewer-layout">
         <section class="waveform-panel" aria-labelledby="waveform-title">
           <div class="panel-heading">
@@ -230,6 +267,9 @@
       memorySnapshot: null,
       zoom: 1,
       showGrid: true,
+      referenceImage: null,
+      caliperPoints: { a: null, b: null },
+      selectedCaliperPoint: 'a',
     };
 
     const byId = (id) => document.getElementById(id);
@@ -559,6 +599,193 @@
       setText('zoom-readout', `Zoom ${Math.round(state.zoom * 100)}%`);
     }
 
+    const SUPPORTED_REFERENCE_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+    const MAX_REFERENCE_IMAGE_BYTES = 20 * 1024 * 1024;
+    const MAX_REFERENCE_IMAGE_DIMENSION = 8000;
+
+    function referenceImageScale() {
+      const value = Number(byId('screenshot-pixels-per-mm').value);
+      return Number.isFinite(value) && value >= 0.1 && value <= 10000 ? value : null;
+    }
+
+    function updateCaliperSelection() {
+      const selected = state.selectedCaliperPoint;
+      byId('select-caliper-a').setAttribute('aria-pressed', String(selected === 'a'));
+      byId('select-caliper-b').setAttribute('aria-pressed', String(selected === 'b'));
+      byId('reference-image-stage').setAttribute('aria-label', `Manual caliper image workspace. Select a location to place point ${selected.toUpperCase()}, or use arrow keys to adjust it.`);
+    }
+
+    function renderManualMeasurement() {
+      const output = byId('manual-measurement');
+      const { a, b } = state.caliperPoints;
+      const scale = referenceImageScale();
+      if (!a || !b) {
+        output.textContent = 'Manual interval, amplitude, and derived rate will appear after both points are placed.';
+        return;
+      }
+      if (!scale) {
+        output.textContent = 'Enter an image scale from 0.1 to 10,000 pixels per millimeter to calculate the manual readout.';
+        return;
+      }
+      const speed = Number(byId('speed-select').value);
+      const gain = Number(byId('gain-select').value);
+      const intervalMs = Math.abs(a.x - b.x) / scale / speed * 1000;
+      const amplitudeMv = Math.abs(a.y - b.y) / scale / gain;
+      const rateBpm = intervalMs > 0 ? 60000 / intervalMs : null;
+      const intervalText = `Manual interval: ${intervalMs.toFixed(1)} ms`;
+      const amplitudeText = `Manual amplitude: ${amplitudeMv.toFixed(3)} mV`;
+      const rateText = rateBpm ? `Derived rate: ${rateBpm.toFixed(1)} bpm` : 'Derived rate: unavailable (points share the same horizontal position)';
+      output.textContent = `${intervalText} · ${amplitudeText} · ${rateText}. Geometric readout only; not a diagnosis or rhythm conclusion.`;
+    }
+
+    function renderCalipers() {
+      const overlay = byId('caliper-overlay');
+      const { a, b } = state.caliperPoints;
+      const image = state.referenceImage;
+      if (!image || (!a && !b)) {
+        overlay.hidden = true;
+        renderManualMeasurement();
+        return;
+      }
+      overlay.hidden = false;
+      const positionMarker = (id, point) => {
+        const marker = byId(id);
+        marker.hidden = !point;
+        if (!point) return;
+        marker.style.left = `${Math.min(100, Math.max(0, point.x / image.width * 100))}%`;
+        marker.style.top = `${Math.min(100, Math.max(0, point.y / image.height * 100))}%`;
+      };
+      positionMarker('caliper-point-a-marker', a);
+      positionMarker('caliper-point-b-marker', b);
+      const line = byId('caliper-line');
+      line.hidden = !(a && b);
+      if (a && b) {
+        const dx = (b.x - a.x) / image.width * 100;
+        const dy = (b.y - a.y) / image.height * 100;
+        const length = Math.hypot(dx, dy);
+        line.style.left = `${a.x / image.width * 100}%`;
+        line.style.top = `${a.y / image.height * 100}%`;
+        line.style.width = `${length}%`;
+        line.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
+      }
+      renderManualMeasurement();
+    }
+
+    function resetCalipers(message = 'Manual caliper points cleared.') {
+      state.caliperPoints = { a: null, b: null };
+      state.selectedCaliperPoint = 'a';
+      updateCaliperSelection();
+      renderCalipers();
+      if (message) announce(message);
+    }
+
+    function clearReferenceImage(message = 'Local screenshot cleared from page memory.') {
+      if (state.referenceImage?.objectUrl) URL.revokeObjectURL(state.referenceImage.objectUrl);
+      state.referenceImage = null;
+      const preview = byId('reference-image-preview');
+      preview.removeAttribute('src');
+      byId('reference-image-frame').hidden = true;
+      byId('reference-image-placeholder').hidden = false;
+      byId('reference-image-input').value = '';
+      resetCalipers('');
+      byId('reference-image-status').textContent = 'No local screenshot selected. Nothing is retained outside this page.';
+      if (message) announce(message);
+    }
+
+    function selectCaliperPoint(point) {
+      state.selectedCaliperPoint = point;
+      updateCaliperSelection();
+      announce(`Select a location on the local screenshot to place point ${point.toUpperCase()}.`);
+    }
+
+    function commitCaliperPoint(point, advance = true) {
+      const selected = state.selectedCaliperPoint;
+      state.caliperPoints = { ...state.caliperPoints, [selected]: point };
+      if (advance) state.selectedCaliperPoint = selected === 'a' ? 'b' : 'a';
+      updateCaliperSelection();
+      renderCalipers();
+      return selected;
+    }
+
+    function placeCaliperPoint(event) {
+      const image = state.referenceImage;
+      const preview = byId('reference-image-preview');
+      if (!image || !preview.complete || !preview.naturalWidth) {
+        announce('Choose a valid local screenshot before placing caliper points.');
+        return;
+      }
+      const bounds = preview.getBoundingClientRect();
+      if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) return;
+      const selected = commitCaliperPoint({
+        x: Math.min(image.width, Math.max(0, (event.clientX - bounds.left) / bounds.width * image.width)),
+        y: Math.min(image.height, Math.max(0, (event.clientY - bounds.top) / bounds.height * image.height)),
+      });
+      announce(`Point ${selected.toUpperCase()} placed. ${state.caliperPoints.a && state.caliperPoints.b ? 'Manual geometric readout updated.' : `Now place point ${state.selectedCaliperPoint.toUpperCase()}.`}`);
+    }
+
+    function adjustCaliperPoint(event) {
+      const image = state.referenceImage;
+      if (!image) return;
+      const deltas = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        const selected = commitCaliperPoint({ x: image.width / 2, y: image.height / 2 });
+        announce(`Point ${selected.toUpperCase()} placed at image center. Use arrow keys after selecting a point to adjust it.`);
+        return;
+      }
+      const delta = deltas[event.key];
+      if (!delta) return;
+      event.preventDefault();
+      const selected = state.selectedCaliperPoint;
+      const current = state.caliperPoints[selected] || { x: image.width / 2, y: image.height / 2 };
+      const step = event.shiftKey ? 10 : 1;
+      commitCaliperPoint({
+        x: Math.min(image.width, Math.max(0, current.x + delta[0] * step)),
+        y: Math.min(image.height, Math.max(0, current.y + delta[1] * step)),
+      }, false);
+      announce(`Point ${selected.toUpperCase()} adjusted. Manual geometric readout updated when both points are set.`);
+    }
+
+    function loadReferenceImage(file) {
+      if (!file) return;
+      const hasSupportedName = /\.(png|jpe?g|webp)$/i.test(file.name);
+      if (!hasSupportedName || !SUPPORTED_REFERENCE_IMAGE_TYPES.has(file.type)) {
+        byId('reference-image-input').value = '';
+        announce('Choose a PNG, JPG, or WebP image with a supported image type. The file was not loaded.');
+        return;
+      }
+      if (file.size === 0 || file.size > MAX_REFERENCE_IMAGE_BYTES) {
+        byId('reference-image-input').value = '';
+        announce('Choose a non-empty local screenshot smaller than 20 MB. The file was not loaded.');
+        return;
+      }
+      const objectUrl = URL.createObjectURL(file);
+      const probe = new Image();
+      probe.onload = () => {
+        if (!probe.naturalWidth || !probe.naturalHeight || probe.naturalWidth > MAX_REFERENCE_IMAGE_DIMENSION || probe.naturalHeight > MAX_REFERENCE_IMAGE_DIMENSION) {
+          URL.revokeObjectURL(objectUrl);
+          byId('reference-image-input').value = '';
+          announce('Choose an image with dimensions up to 8,000 by 8,000 pixels. The file was not loaded.');
+          return;
+        }
+        clearReferenceImage('');
+        state.referenceImage = { objectUrl, name: file.name, width: probe.naturalWidth, height: probe.naturalHeight };
+        byId('reference-image-preview').src = objectUrl;
+        byId('reference-image-frame').hidden = false;
+        byId('reference-image-placeholder').hidden = true;
+        byId('reference-image-status').textContent = `${file.name} is shown locally (${probe.naturalWidth} × ${probe.naturalHeight} px). It remains in page memory only and is never uploaded.`;
+        updateCaliperSelection();
+        renderCalipers();
+        announce(`Loaded ${file.name} locally for manual caliper placement. No data was transmitted externally.`);
+      };
+      probe.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        byId('reference-image-input').value = '';
+        announce('The selected file could not be displayed as a supported image. It was not loaded.');
+      };
+      probe.src = objectUrl;
+    }
+
     function enableHorizontalKeyboardScroll(scroller) {
       scroller.addEventListener('keydown', (event) => {
         const step = Math.max(40, Math.round(scroller.clientWidth * 0.1));
@@ -772,6 +999,15 @@
     });
     byId('open-json').addEventListener('click', () => byId('file-input').click());
     byId('file-input').addEventListener('change', (event) => loadLocalFile(event.target.files?.[0]));
+    byId('open-reference-image').addEventListener('click', () => byId('reference-image-input').click());
+    byId('reference-image-input').addEventListener('change', (event) => loadReferenceImage(event.target.files?.[0]));
+    byId('clear-reference-image').addEventListener('click', () => clearReferenceImage());
+    byId('select-caliper-a').addEventListener('click', () => selectCaliperPoint('a'));
+    byId('select-caliper-b').addEventListener('click', () => selectCaliperPoint('b'));
+    byId('reset-calipers').addEventListener('click', () => resetCalipers());
+    byId('reference-image-stage').addEventListener('click', placeCaliperPoint);
+    byId('reference-image-stage').addEventListener('keydown', adjustCaliperPoint);
+    byId('screenshot-pixels-per-mm').addEventListener('input', renderManualMeasurement);
     byId('load-sample').addEventListener('click', () => {
       state.record = syntheticRecord();
       state.currentIndex = -1;
@@ -791,14 +1027,23 @@
       byId('toggle-grid').setAttribute('aria-pressed', String(state.showGrid));
       drawWaveform();
     });
-    byId('speed-select').addEventListener('change', drawWaveform);
-    byId('gain-select').addEventListener('change', drawWaveform);
+    byId('speed-select').addEventListener('change', () => {
+      drawWaveform();
+      renderManualMeasurement();
+    });
+    byId('gain-select').addEventListener('change', () => {
+      drawWaveform();
+      renderManualMeasurement();
+    });
     byId('export-png').addEventListener('click', exportPng);
     byId('print-view').addEventListener('click', () => window.print());
     enableHorizontalKeyboardScroll(byId('canvas-scroller'));
+    window.addEventListener('pagehide', () => clearReferenceImage(''));
 
     renderRecord();
     updateZoom(1);
+    updateCaliperSelection();
+    renderManualMeasurement();
     fetchIndex();
   </script>
 </body>
