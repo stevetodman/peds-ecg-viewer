@@ -5,7 +5,7 @@ torchvision>=0.15
 
 # ECG Processing
 wfdb>=4.0
-neurokit2>=0.2
+neurokit2>=0.2.13
 biosppy>=2.2
 
 # Data Science
