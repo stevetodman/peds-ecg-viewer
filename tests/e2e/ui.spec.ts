@@ -84,11 +84,12 @@ test('shows an unambiguous research boundary and never contains external analysi
   for (const control of ['clinical-signing', 'experimental-ml', 'image-digitization']) {
     const button = page.locator(`[data-control="${control}"]`);
     await expect(button).toBeDisabled();
-    await expect(button).toHaveAttribute('data-disabled-reason', /\S{20,}/);
-    await expect(button).toHaveAttribute('title', /\S{20,}/);
+    const disabledReason = await button.getAttribute('data-disabled-reason');
+    expect(disabledReason?.trim().length).toBeGreaterThanOrEqual(20);
+    expect((await button.getAttribute('title'))?.trim()).toBe(disabledReason?.trim());
     const reasonId = await button.getAttribute('aria-describedby');
     expect(reasonId).toBeTruthy();
-    await expect(page.locator(`#${reasonId}`)).toHaveText(/\S{20,}/);
+    expect((await page.locator(`#${reasonId}`).textContent())?.trim()).toBe(disabledReason?.trim());
   }
 
   await page.getByRole('button', { name: 'Worklist' }).click();
