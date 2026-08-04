@@ -4,14 +4,14 @@ import { resolve } from 'path';
 export default defineConfig({
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src'),
-      '@types': resolve(__dirname, 'src/types'),
-      '@config': resolve(__dirname, 'src/config'),
-      '@data': resolve(__dirname, 'src/data'),
-      '@signal': resolve(__dirname, 'src/signal'),
-      '@renderer': resolve(__dirname, 'src/renderer'),
-      '@pediatric': resolve(__dirname, 'src/pediatric'),
-      '@utils': resolve(__dirname, 'src/utils'),
+      '@': resolve(import.meta.dirname, 'src'),
+      '@types': resolve(import.meta.dirname, 'src/types'),
+      '@config': resolve(import.meta.dirname, 'src/config'),
+      '@data': resolve(import.meta.dirname, 'src/data'),
+      '@signal': resolve(import.meta.dirname, 'src/signal'),
+      '@renderer': resolve(import.meta.dirname, 'src/renderer'),
+      '@pediatric': resolve(import.meta.dirname, 'src/pediatric'),
+      '@utils': resolve(import.meta.dirname, 'src/utils'),
     },
   },
   build: {
@@ -19,7 +19,7 @@ export default defineConfig({
     // creates the distributable root bundle. Preserve both outputs.
     emptyOutDir: false,
     lib: {
-      entry: resolve(__dirname, 'src/index.ts'),
+      entry: resolve(import.meta.dirname, 'src/index.ts'),
       name: 'PedsEcgViewer',
       fileName: 'peds-ecg-viewer',
     },
