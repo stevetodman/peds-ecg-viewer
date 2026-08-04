@@ -72,6 +72,26 @@ async function installSameOriginGuard(page: Page) {
   return audit;
 }
 
+async function expectDisabledControlReason(page: Page, control: string) {
+  const button = page.locator(`[data-control="${control}"]`);
+  await expect(button).toBeDisabled();
+
+  const [dataReason, title, reasonId] = await Promise.all([
+    button.getAttribute('data-disabled-reason'),
+    button.getAttribute('title'),
+    button.getAttribute('aria-describedby'),
+  ]);
+  expect(dataReason, `${control} needs a disabled reason`).toBeTruthy();
+  const reason = dataReason!.trim();
+  expect(dataReason, `${control} reason must be trimmed`).toBe(reason);
+  expect(reason.length, `${control} reason must be meaningful`).toBeGreaterThanOrEqual(20);
+  expect(title, `${control} title must match its disabled reason`).toBe(reason);
+  expect(reasonId, `${control} needs an aria description`).toBeTruthy();
+  const description = page.locator(`#${reasonId}`);
+  await expect(description, `${control} needs exactly one aria description`).toHaveCount(1);
+  expect(await description.textContent(), `${control} description must match its disabled reason`).toBe(reason);
+}
+
 test('shows an unambiguous research boundary and never contains external analysis networking', async ({ page }) => {
   const networkAudit = await installSameOriginGuard(page);
   await openApp(page);
@@ -82,13 +102,7 @@ test('shows an unambiguous research boundary and never contains external analysi
   await expect(page.getByText(/No waveform or patient field is sent to an AI or ML service/)).toBeVisible();
 
   for (const control of ['clinical-signing', 'experimental-ml', 'image-digitization']) {
-    const button = page.locator(`[data-control="${control}"]`);
-    await expect(button).toBeDisabled();
-    await expect(button).toHaveAttribute('data-disabled-reason', /\S{20,}/);
-    await expect(button).toHaveAttribute('title', /\S{20,}/);
-    const reasonId = await button.getAttribute('aria-describedby');
-    expect(reasonId).toBeTruthy();
-    await expect(page.locator(`#${reasonId}`)).toHaveText(/\S{20,}/);
+    await expectDisabledControlReason(page, control);
   }
 
   await page.getByRole('button', { name: 'Worklist' }).click();
@@ -375,6 +389,7 @@ test('supports keyboard focus, Escape, and both help close actions', async ({ pa
   await page.keyboard.press('Tab');
   await expect(page.locator('.skip-link')).toBeFocused();
   await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/#main-content$/);
   await expect(page.locator('#main-content')).toBeFocused();
 
   const worklistScroller = page.locator('[data-control="worklist-scroll-region"]');

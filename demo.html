@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="./src/muse.css">
 </head>
 <body>
-  <a class="skip-link" data-control="skip-content" href="#main-content">Skip to content</a>
+  <a class="skip-link" data-control="skip-content" href="#main-content" tabindex="0">Skip to content</a>
 
   <header class="app-header">
     <div>
@@ -559,6 +559,25 @@
       setText('zoom-readout', `Zoom ${Math.round(state.zoom * 100)}%`);
     }
 
+    function enableHorizontalKeyboardScroll(scroller) {
+      scroller.addEventListener('keydown', (event) => {
+        const step = Math.max(40, Math.round(scroller.clientWidth * 0.1));
+        if (event.key === 'ArrowRight') {
+          event.preventDefault();
+          scroller.scrollBy({ left: step });
+        } else if (event.key === 'ArrowLeft') {
+          event.preventDefault();
+          scroller.scrollBy({ left: -step });
+        } else if (event.key === 'Home') {
+          event.preventDefault();
+          scroller.scrollTo({ left: 0 });
+        } else if (event.key === 'End') {
+          event.preventDefault();
+          scroller.scrollTo({ left: scroller.scrollWidth });
+        }
+      });
+    }
+
     async function fetchIndex() {
       announce('Loading local dataset index.');
       try {
@@ -776,6 +795,7 @@
     byId('gain-select').addEventListener('change', drawWaveform);
     byId('export-png').addEventListener('click', exportPng);
     byId('print-view').addEventListener('click', () => window.print());
+    enableHorizontalKeyboardScroll(byId('canvas-scroller'));
 
     renderRecord();
     updateZoom(1);

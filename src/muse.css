@@ -81,11 +81,13 @@ select {
   border-radius: 0.35rem;
   background: #111827;
   color: white;
-  transform: translateY(-180%);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .skip-link:focus {
-  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .app-header {
