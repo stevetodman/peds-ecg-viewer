@@ -1,5 +1,5 @@
 # Core ML
-torch>=2.0
+torch>=2.13.0
 pytorch-lightning>=2.0
 torchvision>=0.15
 
