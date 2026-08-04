@@ -9,6 +9,20 @@
 export { ECGDigitizer, digitizePNG, loadPNGFile } from './digitizer';
 export type { ImageSource } from './digitizer';
 
+// Local screenshot intake and quality gate (no network or AI providers)
+export { intakeECGScreenshot, requireValidatedIntake } from './intake';
+export type {
+  ECGScreenshotIntake,
+  IntakeFormat,
+  IntakeProvenance,
+  IntakeQualityState,
+  IntakeReason,
+  LocalDigitizationEvidence,
+  LocalECGDocument,
+  LocalECGIntakeSource,
+  ValidatedECGScreenshotIntake,
+} from './intake';
+
 // Guaranteed Digitizer (multi-tier AI fallback)
 export {
   GuaranteedDigitizer,
