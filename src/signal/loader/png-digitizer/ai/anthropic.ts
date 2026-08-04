@@ -13,6 +13,7 @@ import type { AnthropicResponse } from './api-types';
  */
 export class AnthropicProvider extends BaseAIProvider {
   name = 'anthropic';
+  readonly privacyProvider = 'anthropic' as const;
 
   constructor(apiKey: string, model?: string) {
     super(apiKey, model);

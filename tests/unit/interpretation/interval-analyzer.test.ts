@@ -12,10 +12,10 @@ describe('Interval Analyzer', () => {
     const ageDays = ageToDays(5, 'years');
     const normals = getNormalsForAge(ageDays);
 
-    it('should detect first degree AV block (prolonged PR)', () => {
+    it('reports a prolonged PR without inferring AV block', () => {
       // PR > p98 for age
       const findings = analyzeIntervals(220, 80, 420, 90, normals, ageDays);
-      const prFinding = findings.find(f => f.code === 'FIRST_DEGREE_AV_BLOCK');
+      const prFinding = findings.find(f => f.code === 'PR_PROLONGED');
       expect(prFinding).toBeDefined();
       expect(prFinding?.severity).toBe('abnormal');
     });
@@ -30,7 +30,7 @@ describe('Interval Analyzer', () => {
     it('should return no PR finding for normal PR', () => {
       // Normal values return no findings (only abnormalities are flagged)
       const findings = analyzeIntervals(140, 80, 420, 90, normals, ageDays);
-      const prFinding = findings.find(f => f.code === 'FIRST_DEGREE_AV_BLOCK' || f.code === 'PR_SHORT');
+      const prFinding = findings.find(f => f.code === 'PR_PROLONGED' || f.code === 'PR_SHORT');
       expect(prFinding).toBeUndefined();
     });
   });
@@ -66,15 +66,15 @@ describe('Interval Analyzer', () => {
       expect(qtcFinding?.clinicalNote).toContain('Long QT');
     });
 
-    it('should detect abnormal QTc > 470ms', () => {
-      const findings = analyzeIntervals(140, 80, 480, 80, normals, ageDays);
+    it('should detect abnormal QTc above the age-specific p98', () => {
+      const findings = analyzeIntervals(140, 80, normals.qtcBazett.p98 + 25, 80, normals, ageDays);
       const qtcFinding = findings.find(f => f.code === 'QTC_PROLONGED');
       expect(qtcFinding).toBeDefined();
       expect(qtcFinding?.severity).toBe('abnormal');
     });
 
-    it('should detect borderline QTc > 450ms', () => {
-      const findings = analyzeIntervals(140, 80, 460, 80, normals, ageDays);
+    it('should detect borderline QTc at the age-specific p98', () => {
+      const findings = analyzeIntervals(140, 80, normals.qtcBazett.p98, 80, normals, ageDays);
       // Borderline QTc uses code QTC_BORDERLINE
       const qtcFinding = findings.find(f => f.code === 'QTC_BORDERLINE');
       expect(qtcFinding).toBeDefined();
@@ -127,7 +127,7 @@ describe('Interval Analyzer', () => {
       // Should have at least 2 findings (PR and QTc)
       expect(findings.length).toBeGreaterThanOrEqual(2);
 
-      const prFinding = findings.find(f => f.code === 'FIRST_DEGREE_AV_BLOCK');
+      const prFinding = findings.find(f => f.code === 'PR_PROLONGED');
       const qtcFinding = findings.find(f => f.code === 'QTC_PROLONGED');
       expect(prFinding).toBeDefined();
       expect(qtcFinding).toBeDefined();

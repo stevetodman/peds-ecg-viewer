@@ -6,6 +6,7 @@
  */
 
 import type { ECGSignal, LeadName } from '../../../types';
+import type { AITransmissionAuthorization } from './ai/privacy';
 
 // Re-export LeadName for use by other modules in this package
 export type { LeadName } from '../../../types';
@@ -19,10 +20,13 @@ export type { LeadName } from '../../../types';
  */
 export interface DigitizerConfig {
   /** AI provider to use */
-  aiProvider?: 'anthropic' | 'openai' | 'google' | 'none';
+  aiProvider?: 'anthropic' | 'openai' | 'google' | 'xai' | 'none';
 
   /** API key (or use environment variable) */
   apiKey?: string;
+
+  /** Explicit per-request authorization required before an image leaves this process. */
+  aiTransmissionAuthorization?: AITransmissionAuthorization;
 
   /** Model to use */
   model?: string;

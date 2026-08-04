@@ -15,7 +15,11 @@
  */
 
 import type { LeadName } from '../types';
-import { getAgeGroup, type AgeGroup } from '../../../../data/ageGroups';
+import {
+  getAgeGroup,
+  MAX_PEDIATRIC_AGE_DAYS,
+  type AgeGroup,
+} from '../../../../data/ageGroups';
 
 /**
  * Types of electrode swaps
@@ -61,12 +65,33 @@ export interface PediatricContext {
   /** Age in days used for interpretation */
   ageDays: number;
   /** Age group */
-  ageGroup: AgeGroup;
+  ageGroup: AgeGroup | AdultAgeGroup;
   /** Whether RV dominance was expected */
   expectedRVDominance: boolean;
   /** Findings suppressed due to age-appropriate variants */
   suppressedFindings?: string[];
 }
+
+/** Adult criteria are intentionally distinct from the pediatric reference set. */
+interface AdultAgeGroup {
+  id: 'adult';
+  label: 'Adult';
+  shortLabel: 'Adult';
+  minDays: number;
+  maxDays: number;
+  stage: 'adult';
+  clinicalNotes: string;
+}
+
+const ADULT_AGE_GROUP: AdultAgeGroup = {
+  id: 'adult',
+  label: 'Adult',
+  shortLabel: 'Adult',
+  minDays: MAX_PEDIATRIC_AGE_DAYS,
+  maxDays: Number.POSITIVE_INFINITY,
+  stage: 'adult',
+  clinicalNotes: 'Adult thresholds used; pediatric reference ranges do not apply.',
+};
 
 /**
  * Electrode swap detection result
@@ -145,7 +170,7 @@ export class ElectrodeSwapDetector {
    */
   private getAgeAwareThresholds(): AgeAwarePrecordialThresholds {
     // Default to adult thresholds if no age provided
-    if (this.ageDays === undefined) {
+    if (this.ageDays === undefined || this.ageDays >= MAX_PEDIATRIC_AGE_DAYS) {
       return {
         expectRVDominance: false,
         dropThresholdMultiplier: 1.5,
@@ -192,7 +217,9 @@ export class ElectrodeSwapDetector {
 
     return {
       ageDays: this.ageDays,
-      ageGroup: getAgeGroup(this.ageDays),
+      ageGroup: this.ageDays >= MAX_PEDIATRIC_AGE_DAYS
+        ? ADULT_AGE_GROUP
+        : getAgeGroup(this.ageDays),
       expectedRVDominance: thresholds.expectRVDominance,
       suppressedFindings: suppressedFindings.length > 0 ? suppressedFindings : undefined,
     };

@@ -9,6 +9,11 @@ import type { AIAnalysisResult, ECGImageAnalysis } from '../types';
 import { parseAIResponse } from './response-parser';
 import { validateAnalysis } from './validator';
 import { getAnalysisPrompt } from './prompts';
+import {
+  assertAITransmissionAuthorized,
+  type AITransmissionAuthorizationRequest,
+  type ExternalAIProvider,
+} from './privacy';
 
 /**
  * AI Provider interface
@@ -18,10 +23,17 @@ export interface AIProvider {
   name: string;
 
   /** Analyze an ECG image with default comprehensive prompt */
-  analyze(imageData: ImageData | Blob | string): Promise<AIAnalysisResult>;
+  analyze(
+    imageData: ImageData | Blob | string,
+    authorization?: AITransmissionAuthorizationRequest,
+  ): Promise<AIAnalysisResult>;
 
   /** Analyze with a custom prompt (for minimal token usage) */
-  analyzeWithPrompt(imageData: ImageData | Blob | string, prompt: string): Promise<AIAnalysisResult>;
+  analyzeWithPrompt(
+    imageData: ImageData | Blob | string,
+    prompt: string,
+    authorization?: AITransmissionAuthorizationRequest,
+  ): Promise<AIAnalysisResult>;
 }
 
 /**
@@ -39,6 +51,7 @@ async function getCanvasModule() {
 
 export abstract class BaseAIProvider implements AIProvider {
   abstract name: string;
+  abstract readonly privacyProvider: ExternalAIProvider;
   protected apiKey: string;
   protected model: string;
 
@@ -61,15 +74,26 @@ export abstract class BaseAIProvider implements AIProvider {
   /**
    * Analyze an ECG image with default comprehensive prompt
    */
-  async analyze(image: ImageData | Blob | string): Promise<AIAnalysisResult> {
-    return this.analyzeWithPrompt(image, getAnalysisPrompt());
+  async analyze(
+    image: ImageData | Blob | string,
+    authorization?: AITransmissionAuthorizationRequest,
+  ): Promise<AIAnalysisResult> {
+    return this.analyzeWithPrompt(image, getAnalysisPrompt(), authorization);
   }
 
   /**
    * Analyze with a custom prompt (for minimal token usage)
    */
-  async analyzeWithPrompt(image: ImageData | Blob | string, prompt: string): Promise<AIAnalysisResult> {
+  async analyzeWithPrompt(
+    image: ImageData | Blob | string,
+    prompt: string,
+    authorization?: AITransmissionAuthorizationRequest,
+  ): Promise<AIAnalysisResult> {
     const startTime = Date.now();
+
+    // This must precede image conversion so that an unauthorized request has
+    // no observable network side effect, including fetching a URL image.
+    assertAITransmissionAuthorized(this.privacyProvider, authorization);
 
     // Convert image to base64
     const base64 = await this.imageToBase64(image);

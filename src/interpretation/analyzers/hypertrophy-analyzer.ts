@@ -39,7 +39,7 @@ interface VoltageNormals {
  */
 export function analyzeHypertrophy(
   voltages: VoltageData,
-  qrsAxis: number,
+  qrsAxis: number | null,
   normals: VoltageNormals,
   ageDays: number
 ): InterpretationFinding[] {
@@ -74,7 +74,7 @@ export function analyzeHypertrophy(
   }
 
   // Right axis deviation contributes to RVH
-  if (qrsAxis > normals.qrsAxis.p98) {
+  if (qrsAxis !== null && qrsAxis > normals.qrsAxis.p98) {
     rvhCriteria.push('Right axis deviation');
     rvhScore++;
   }
@@ -131,7 +131,7 @@ export function analyzeHypertrophy(
   }
 
   // Left axis deviation contributes to LVH
-  if (qrsAxis < normals.qrsAxis.p2) {
+  if (qrsAxis !== null && qrsAxis < normals.qrsAxis.p2) {
     lvhCriteria.push('Left axis deviation');
     lvhScore++;
   }

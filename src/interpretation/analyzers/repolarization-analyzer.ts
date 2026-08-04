@@ -28,8 +28,8 @@ interface TWavePattern {
  */
 export function analyzeRepolarization(
   tWaveV1Polarity: TWavePolarity | undefined,
-  tAxis: number,
-  qrsAxis: number,
+  tAxis: number | null,
+  qrsAxis: number | null,
   tWavePattern: TWavePattern,
   ageDays: number
 ): InterpretationFinding[] {
@@ -55,7 +55,7 @@ export function analyzeRepolarization(
           ageAdjusted: true,
           pediatricSpecific: true,
           confidence: 0.85,
-          clinicalNote: `Suggests RV strain or hypertrophy. ${tWavePattern.notes || ''}`,
+          clinicalNote: `Suggests RV strain or hypertrophy. ${tWavePattern.notes ?? ''}`,
         });
       } else if (tWaveV1Polarity === 'inverted' && ageDays <= 1) {
         // Inverted T in first day is unusual
@@ -92,7 +92,7 @@ export function analyzeRepolarization(
   }
 
   // QRS-T angle analysis (T axis relative to QRS axis)
-  if (!isNaN(tAxis) && !isNaN(qrsAxis)) {
+  if (tAxis !== null && qrsAxis !== null && Number.isFinite(tAxis) && Number.isFinite(qrsAxis)) {
     let qrsTAngle = Math.abs(qrsAxis - tAxis);
     // Normalize to 0-180 range
     if (qrsTAngle > 180) {

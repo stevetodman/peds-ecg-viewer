@@ -17,7 +17,7 @@ describe('Rate Analyzer', () => {
       // Neonate p98 ~180, so 220 = ~22% above = abnormal
       const findings = analyzeRate(220, normals.heartRate, ageDays);
       expect(findings).toHaveLength(1);
-      expect(findings[0].code).toBe('SINUS_TACHYCARDIA');
+      expect(findings[0].code).toBe('RATE_HIGH');
       expect(findings[0].severity).toBe('abnormal');
       expect(findings[0].ageAdjusted).toBe(true);
     });
@@ -26,7 +26,7 @@ describe('Rate Analyzer', () => {
       // Just above upper limit (<20% = borderline)
       const hr = normals.heartRate.p98 + 10;
       const findings = analyzeRate(hr, normals.heartRate, ageDays);
-      expect(findings[0].code).toBe('SINUS_TACHYCARDIA');
+      expect(findings[0].code).toBe('RATE_HIGH');
       expect(findings[0].severity).toBe('borderline');
     });
 
@@ -38,7 +38,7 @@ describe('Rate Analyzer', () => {
 
     it('should detect bradycardia when HR < p2', () => {
       const findings = analyzeRate(70, normals.heartRate, ageDays);
-      expect(findings[0].code).toBe('SINUS_BRADYCARDIA');
+      expect(findings[0].code).toBe('RATE_LOW');
     });
   });
 
@@ -61,12 +61,12 @@ describe('Rate Analyzer', () => {
     it('should detect tachycardia at lower HR than neonates', () => {
       // 120 bpm - should be tachycardia for 8-year-old
       const findings = analyzeRate(120, normals.heartRate, ageDays);
-      expect(findings[0].code).toBe('SINUS_TACHYCARDIA');
+      expect(findings[0].code).toBe('RATE_HIGH');
     });
 
     it('should detect bradycardia appropriately', () => {
       const findings = analyzeRate(50, normals.heartRate, ageDays);
-      expect(findings[0].code).toBe('SINUS_BRADYCARDIA');
+      expect(findings[0].code).toBe('RATE_LOW');
     });
   });
 
@@ -77,7 +77,7 @@ describe('Rate Analyzer', () => {
     it('should use adult-like thresholds', () => {
       // HR of 105 is tachycardia for adolescent
       const findings = analyzeRate(105, normals.heartRate, ageDays);
-      expect(findings[0].code).toBe('SINUS_TACHYCARDIA');
+      expect(findings[0].code).toBe('RATE_HIGH');
     });
 
     it('should accept normal adult HR range', () => {

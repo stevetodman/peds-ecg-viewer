@@ -41,6 +41,9 @@ export type FindingCode =
   | 'RATE_NORMAL'
   | 'RATE_HIGH'
   | 'RATE_LOW'
+  | 'ANALYSIS_INCOMPLETE'
+  | 'POSSIBLE_PREEXCITATION'
+  | 'VENTRICULAR_PREEXCITATION'
   // Axis
   | 'AXIS_NORMAL'
   | 'LEFT_AXIS_DEVIATION'
@@ -96,7 +99,7 @@ export type FindingCode =
  */
 export interface InterpretationFinding {
   /** Finding code */
-  code: FindingCode | string;
+  code: string;
 
   /** Human-readable statement */
   statement: string;
@@ -134,19 +137,19 @@ export interface RhythmDescription {
   name: string;
 
   /** Is the rhythm regular? */
-  regular: boolean;
+  regular: boolean | null;
 
   /** Ventricular rate */
-  ventricularRate: number;
+  ventricularRate: number | null;
 
   /** Atrial rate (if different) */
   atrialRate?: number;
 
   /** AV relationship */
-  avRelationship?: '1:1' | 'variable' | 'dissociated' | 'blocked';
+  avRelationship?: '1:1' | 'variable' | 'dissociated' | 'blocked' | 'unknown';
 
   /** P-wave morphology */
-  pWaveMorphology?: 'normal' | 'abnormal' | 'absent' | 'retrograde';
+  pWaveMorphology?: 'normal' | 'abnormal' | 'absent' | 'retrograde' | 'unknown';
 
   /** Rhythm origin */
   origin: 'sinus' | 'atrial' | 'junctional' | 'ventricular' | 'paced' | 'unknown';
@@ -157,7 +160,7 @@ export interface RhythmDescription {
  */
 export interface InterpretationSummary {
   /** Main conclusion */
-  conclusion: 'Normal ECG' | 'Abnormal ECG' | 'Borderline ECG';
+  conclusion: 'Normal ECG' | 'Abnormal ECG' | 'Borderline ECG' | 'Inconclusive';
 
   /** One-line summary */
   oneLiner: string;
@@ -208,6 +211,12 @@ export interface ECGInterpretation {
 
   /** Raw statement for display (Muse-style) */
   rawStatements?: string[];
+
+  /** Per-measurement origin and availability, when produced by signal analysis. */
+  measurementProvenance: Readonly<Record<
+    string,
+    { source: 'detected' | 'derived' | 'reported' | 'unavailable'; method: string; reason?: string; beatsUsed?: number }
+  >>;
 }
 
 /**
@@ -217,22 +226,27 @@ export function createNormalInterpretation(
   heartRate: number,
   ageDays: number
 ): ECGInterpretation {
+  const unavailable = (method: string, reason: string) => ({
+    source: 'unavailable' as const,
+    method,
+    reason,
+  });
   return {
     rhythm: {
-      name: 'Normal sinus rhythm',
-      regular: true,
+      name: 'Rhythm not assessed',
+      regular: null,
       ventricularRate: heartRate,
-      origin: 'sinus',
-      pWaveMorphology: 'normal',
-      avRelationship: '1:1',
+      origin: 'unknown',
+      pWaveMorphology: 'unknown',
+      avRelationship: 'unknown',
     },
     findings: [
       {
-        code: 'NORMAL_SINUS_RHYTHM',
-        statement: 'Normal sinus rhythm',
-        severity: 'normal',
-        category: 'rhythm',
-        ageAdjusted: true,
+        code: 'ANALYSIS_INCOMPLETE',
+        statement: 'Rhythm and morphology were not assessed',
+        severity: 'borderline',
+        category: 'other',
+        confidence: 1,
       },
       {
         code: 'RATE_NORMAL',
@@ -243,16 +257,29 @@ export function createNormalInterpretation(
       },
     ],
     summary: {
-      conclusion: 'Normal ECG',
-      oneLiner: 'Normal ECG for age',
+      conclusion: 'Inconclusive',
+      oneLiner: 'Rate within the supplied reference range; complete ECG interpretation unavailable',
       urgency: 'routine',
-      recommendReview: false,
+      recommendReview: true,
     },
     method: 'automated',
-    confidence: 0.95,
+    confidence: 0,
     interpretedAt: new Date(),
     interpretedBy: 'GEMUSE v0.1.0',
     patientAgeDays: ageDays,
     pediatricInterpretation: ageDays < 6575, // <18 years
+    measurementProvenance: {
+      hr: Number.isFinite(heartRate)
+        ? { source: 'reported' as const, method: 'caller-supplied', reason: 'Source provenance was not supplied' }
+        : unavailable('caller-supplied', 'No usable heart rate supplied'),
+      rr: unavailable('legacy-normal-helper', 'No RR interval supplied'),
+      pr: unavailable('legacy-normal-helper', 'No PR interval supplied'),
+      qrs: unavailable('legacy-normal-helper', 'No QRS duration supplied'),
+      qt: unavailable('legacy-normal-helper', 'No QT interval supplied'),
+      qtc: unavailable('legacy-normal-helper', 'No QTc supplied'),
+      pAxis: unavailable('legacy-normal-helper', 'No P axis supplied'),
+      qrsAxis: unavailable('legacy-normal-helper', 'No QRS axis supplied'),
+      tAxis: unavailable('legacy-normal-helper', 'No T axis supplied'),
+    },
   };
 }

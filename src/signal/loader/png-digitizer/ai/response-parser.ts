@@ -62,40 +62,6 @@ function repairJSON(jsonStr: string): string {
   // Remove trailing commas before } or ]
   result = result.replace(/,(\s*[}\]])/g, '$1');
 
-  // Fix incomplete arrays (missing closing bracket at end)
-  const openBrackets = (result.match(/\[/g) || []).length;
-  const closeBrackets = (result.match(/\]/g) || []).length;
-  if (openBrackets > closeBrackets) {
-    // Find where the JSON seems to be cut off and try to repair
-    // Look for patterns like incomplete array items
-    const lastBracketPos = result.lastIndexOf('[');
-    const textAfter = result.substring(lastBracketPos);
-
-    // If we're in the middle of an array, try to close it properly
-    if (textAfter.includes('{') && !textAfter.includes('}]')) {
-      // Check if the last item is incomplete
-      const lastOpenBrace = result.lastIndexOf('{');
-      const lastCloseBrace = result.lastIndexOf('}');
-
-      if (lastOpenBrace > lastCloseBrace) {
-        // Incomplete object in array - remove it and close
-        result = result.substring(0, lastOpenBrace).replace(/,\s*$/, '') + ']}';
-      } else {
-        // Just missing closing bracket
-        result = result.replace(/,\s*$/, '') + ']';
-      }
-    }
-  }
-
-  // Fix incomplete objects
-  const openBraces = (result.match(/\{/g) || []).length;
-  const closeBraces = (result.match(/\}/g) || []).length;
-  if (openBraces > closeBraces) {
-    for (let i = 0; i < openBraces - closeBraces; i++) {
-      result = result.replace(/,\s*$/, '') + '}';
-    }
-  }
-
   return result;
 }
 

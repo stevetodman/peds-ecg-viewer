@@ -15,6 +15,9 @@ export default defineConfig({
     },
   },
   build: {
+    // `tsc` emits the declaration tree and renderer subpath before Vite
+    // creates the distributable root bundle. Preserve both outputs.
+    emptyOutDir: false,
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
       name: 'PedsEcgViewer',

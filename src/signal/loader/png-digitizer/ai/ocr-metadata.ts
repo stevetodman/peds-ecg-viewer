@@ -6,6 +6,7 @@
  */
 
 import type { AIProvider } from './provider';
+import type { AITransmissionAuthorizationRequest } from './privacy';
 import type { OCRMetadataResult, OCRRawTextItem } from './api-types';
 
 /**
@@ -280,14 +281,17 @@ export class OCRMetadataExtractor {
   /**
    * Extract metadata from ECG image
    */
-  async extract(image: ImageData | Blob | string): Promise<ECGMetadata> {
+  async extract(
+    image: ImageData | Blob | string,
+    authorization?: AITransmissionAuthorizationRequest,
+  ): Promise<ECGMetadata> {
     try {
       // Use the provider to analyze the image with OCR prompt
       const prompt = getOCRPrompt();
 
       // We need to call the provider's internal API with custom prompt
       // For now, we'll use a workaround by calling analyze and parsing differently
-      const result = await this.callWithCustomPrompt(image, prompt);
+      const result = await this.callWithCustomPrompt(image, prompt, authorization);
 
       return parseOCRResponse(result);
     } catch (error) {
@@ -299,17 +303,12 @@ export class OCRMetadataExtractor {
   /**
    * Call AI provider with custom prompt
    */
-  private async callWithCustomPrompt(image: ImageData | Blob | string, prompt: string): Promise<string> {
-    // Access the provider's callAPI method if available
-    const provider = this.provider as any;
-
-    if (typeof provider.callAPI === 'function' && typeof provider.imageToBase64 === 'function') {
-      const base64 = await provider.imageToBase64(image);
-      return await provider.callAPI(base64, prompt);
-    }
-
-    // Fallback: use the standard analyze method and extract raw response
-    const result = await this.provider.analyze(image);
+  private async callWithCustomPrompt(
+    image: ImageData | Blob | string,
+    prompt: string,
+    authorization?: AITransmissionAuthorizationRequest,
+  ): Promise<string> {
+    const result = await this.provider.analyzeWithPrompt(image, prompt, authorization);
     return result.rawResponse;
   }
 }

@@ -2,23 +2,23 @@
  * Brugada pattern detection for ECG interpretation
  *
  * Brugada Pattern Detection:
- * - Type 1 (coved): >=2mm J-point elevation with coved ST-segment and
- *   negative T-wave in >=1 of V1-V3
+ * - Type 1-like (coved): >=2mm J-point elevation with coved ST-segment and
+ *   negative T-wave in the same one of V1-V2
  * - Type 2 (saddleback): >=2mm J-point elevation with saddleback ST-segment
  *   and positive/biphasic T-wave
  *
  * Clinical Importance:
- * - Associated with sudden cardiac death
- * - May be unmasked by fever, medications, or sodium channel blockers
- * - Requires electrophysiology evaluation and possible ICD
+ * - Requires source-ECG confirmation and specialist review when clinically
+ *   indicated; this analyzer does not diagnose Brugada syndrome.
  *
  * Note: In pediatrics, Brugada is rare but can occur. Type 1 pattern
- * is the only diagnostic pattern; Type 2 is suggestive but not diagnostic.
+ * is the morphology most concerning for a type 1 ECG pattern; both outputs
+ * remain automated pattern flags rather than diagnoses.
  *
  * @module interpretation/analyzers/brugada-analyzer
  */
 
-import { InterpretationFinding, Severity } from '../../types/interpretation';
+import { InterpretationFinding } from '../../types/interpretation';
 
 /**
  * Brugada pattern type
@@ -56,10 +56,11 @@ export interface BrugadaInput {
  * Analyze for Brugada pattern
  *
  * Detection requires:
- * - Type 1: ST elevation >=2mm + coved morphology + negative T-wave in V1-V3
+ * - Type 1: ST elevation >=2mm + coved morphology + negative T-wave in the
+ *   same V1 or V2 lead
  * - Type 2: ST elevation >=2mm + saddleback morphology + positive/biphasic T-wave
  *
- * @param input - ST segment and T-wave data from V1-V3
+ * @param input - ST segment and T-wave data from V1-V2
  * @param ageDays - Patient age in days
  * @returns Brugada-related findings
  */
@@ -67,6 +68,9 @@ export function analyzeBrugada(
   input: BrugadaInput,
   ageDays: number
 ): InterpretationFinding[] {
+  // Criteria are intentionally not age-adjusted; retain the argument to keep
+  // a consistent analyzer interface.
+  void ageDays;
   const findings: InterpretationFinding[] = [];
 
   // If no ST data available, can't detect Brugada
@@ -78,11 +82,11 @@ export function analyzeBrugada(
     return findings;
   }
 
-  // Get maximum ST elevation in V1-V2 (primary leads for Brugada)
+  // Get maximum ST elevation in V1-V2 (primary leads for Brugada). V3 is not
+  // used to satisfy a V1/V2 criterion.
   const stElevations = [
     input.stElevationV1 ?? 0,
     input.stElevationV2 ?? 0,
-    input.stElevationV3 ?? 0,
   ];
   const maxSTElevation = Math.max(...stElevations);
 
@@ -90,8 +94,9 @@ export function analyzeBrugada(
   const significantSTElevation = maxSTElevation >= 2;
 
   // T-wave negativity in V1-V2
-  const negativeT =
-    input.tWaveV1 === 'negative' || input.tWaveV2 === 'negative';
+  const qualifyingType1Lead =
+    ((input.stElevationV1 ?? -Infinity) >= 2 && input.tWaveV1 === 'negative') ||
+    ((input.stElevationV2 ?? -Infinity) >= 2 && input.tWaveV2 === 'negative');
   const positiveOrBiphasicT =
     input.tWaveV1 === 'positive' ||
     input.tWaveV1 === 'biphasic' ||
@@ -102,14 +107,9 @@ export function analyzeBrugada(
   let brugadaType: BrugadaType = 'none';
 
   if (significantSTElevation) {
-    if (input.stMorphology === 'coved' && negativeT) {
+    if (input.stMorphology === 'coved' && qualifyingType1Lead) {
       brugadaType = 'type1_coved';
     } else if (input.stMorphology === 'saddleback' && positiveOrBiphasicT) {
-      brugadaType = 'type2_saddleback';
-    } else if (input.stMorphology === 'coved') {
-      // Coved without negative T - still suggestive
-      brugadaType = 'type1_coved';
-    } else if (input.stMorphology === 'saddleback') {
       brugadaType = 'type2_saddleback';
     }
   }
@@ -118,7 +118,7 @@ export function analyzeBrugada(
   if (brugadaType === 'type1_coved') {
     findings.push({
       code: 'BRUGADA_PATTERN',
-      statement: `Brugada Type 1 (coved) pattern - ST elevation ${maxSTElevation.toFixed(1)} mm in V1-V2`,
+      statement: `Coved ST/T morphology concerning for a type 1 Brugada ECG pattern (${maxSTElevation.toFixed(1)} mm in V1 or V2); expert confirmation required`,
       severity: 'abnormal',
       category: 'conduction',
       evidence: {
@@ -131,18 +131,14 @@ export function analyzeBrugada(
       },
       ageAdjusted: false, // Same criteria for all ages
       pediatricSpecific: true, // Rare in pediatrics, important to identify
-      confidence: negativeT ? 0.85 : 0.7,
+      confidence: 0.75,
       clinicalNote:
-        'Type 1 Brugada pattern is DIAGNOSTIC. ' +
-        'Risk of ventricular fibrillation and sudden cardiac death. ' +
-        'URGENT cardiology/EP referral recommended. ' +
-        'Avoid fever (treat aggressively), Na+ channel blockers, and certain medications. ' +
-        'Consider ICD evaluation.',
+        'An automated tracing assessment cannot diagnose Brugada syndrome. Confirm lead placement, calibration, and morphology on the original ECG and obtain prompt cardiology/electrophysiology review. Treat fever promptly while evaluation is pending.',
     });
   } else if (brugadaType === 'type2_saddleback') {
     findings.push({
       code: 'BRUGADA_PATTERN',
-      statement: `Brugada Type 2 (saddleback) pattern - ST elevation ${maxSTElevation.toFixed(1)} mm in V1-V2`,
+      statement: `Saddleback ST morphology in V1/V2 (${maxSTElevation.toFixed(1)} mm); possible Brugada pattern, not diagnostic`,
       severity: 'borderline',
       category: 'conduction',
       evidence: {
@@ -157,15 +153,12 @@ export function analyzeBrugada(
       pediatricSpecific: true,
       confidence: 0.6,
       clinicalNote:
-        'Type 2 Brugada pattern is NOT diagnostic by itself. ' +
-        'Consider provocative testing (ajmaline/flecainide challenge) if clinical suspicion. ' +
-        'May convert to Type 1 with fever or medications. ' +
-        'Cardiology referral recommended for evaluation.',
+        'This morphology is nonspecific and is not diagnostic of Brugada syndrome. Confirm on the original ECG and refer for expert evaluation when clinically indicated; drug challenge belongs in a specialist-controlled setting.',
     });
   }
 
-  // Additional check: significant ST elevation in V1-V2 without clear morphology
-  // but with RBBB pattern could suggest Brugada
+  // ST elevation with RBBB morphology is not sufficiently specific to call a
+  // Brugada pattern. Preserve it as a nonspecific measurement only.
   if (
     brugadaType === 'none' &&
     significantSTElevation &&
@@ -174,18 +167,17 @@ export function analyzeBrugada(
   ) {
     findings.push({
       code: 'ST_ELEVATION',
-      statement: `ST elevation in V1-V2 with RBBB pattern - consider Brugada syndrome`,
+      statement: 'ST elevation in V1/V2 with RBBB morphology; source-ECG review required',
       severity: 'borderline',
       category: 'morphology',
       evidence: {
         stElevationV1: input.stElevationV1 ?? 'N/A',
         stElevationV2: input.stElevationV2 ?? 'N/A',
-        rbbbPattern: true,
+        rbbbPattern: 'reported',
       },
       confidence: 0.5,
       clinicalNote:
-        'ST elevation in V1-V2 with RBBB pattern may represent Brugada or early repolarization. ' +
-        'Repeat ECG at higher/lower precordial positions if Brugada suspected.',
+        'This combination is nonspecific and does not establish Brugada syndrome. Confirm lead placement, calibration, and morphology on the source ECG.',
     });
   }
 
@@ -202,8 +194,13 @@ export function hasPossibleBrugada(input: BrugadaInput): boolean {
     input.stElevationV2 ?? 0
   );
 
-  return (
-    maxST >= 2 &&
-    (input.stMorphology === 'coved' || input.stMorphology === 'saddleback')
+  const type1 = input.stMorphology === 'coved' && (
+    ((input.stElevationV1 ?? -Infinity) >= 2 && input.tWaveV1 === 'negative') ||
+    ((input.stElevationV2 ?? -Infinity) >= 2 && input.tWaveV2 === 'negative')
   );
+  const type2 = maxST >= 2 && input.stMorphology === 'saddleback' && (
+    input.tWaveV1 === 'positive' || input.tWaveV1 === 'biphasic' ||
+    input.tWaveV2 === 'positive' || input.tWaveV2 === 'biphasic'
+  );
+  return type1 || type2;
 }

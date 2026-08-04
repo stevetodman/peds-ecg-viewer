@@ -53,7 +53,9 @@ const DEFAULT_CONFIG: Required<WaveformTracerConfig> = {
   useStrictColorMatching: false, // Enable when waveformColor is known from AI
   useContourTracing: true,
   rejectArtifacts: true,
-  smoothingWindow: 3,
+  // Preserve narrow QRS morphology unless a caller explicitly requests
+  // smoothing for a noisy scan.
+  smoothingWindow: 0,
 };
 
 /**
@@ -220,7 +222,7 @@ export class WaveformTracer {
     x: number,
     yMin: number,
     yMax: number,
-    expectedBaselineY?: number
+    _expectedBaselineY?: number
   ): { found: boolean; y: number; confidence: number } {
     // First pass: find all dark segments (continuous vertical runs)
     const segments: Array<{ startY: number; endY: number; sumDarkness: number; maxDarkness: number }> = [];
@@ -367,7 +369,10 @@ export class WaveformTracer {
     let artifactStart: number | null = null;
     for (let y = minY; y < maxY; y++) {
       const count = yDarkCounts.get(y) || 0;
-      const isInEdgeRegion = y < topEdge || y > bottomEdge;
+      // Do not suppress a trace that happens to be clipped at the panel
+      // boundary; it is indistinguishable from a frame line but is still the
+      // only available waveform sample at an image edge.
+      const isInEdgeRegion = (y < topEdge || y > bottomEdge) && y > minY && y < maxY - 1;
 
       if (count > artifactThreshold && isInEdgeRegion) {
         if (artifactStart === null) {
@@ -397,7 +402,7 @@ export class WaveformTracer {
     x: number,
     yMin: number,
     yMax: number,
-    expectedBaselineY: number,
+    _expectedBaselineY: number,
     artifactRanges: Array<{ startY: number; endY: number }>,
     prevY: number | null
   ): { found: boolean; y: number; confidence: number } {

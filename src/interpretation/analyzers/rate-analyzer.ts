@@ -14,12 +14,14 @@ import { NormalRange, classifyValue } from '../../data/pediatricNormals';
  * @returns Rate-related findings
  */
 export function analyzeRate(
-  hr: number,
+  hr: number | null,
   heartRateNormals: NormalRange,
-  ageDays: number
+  ageDays: number,
+  strictness: 'lenient' | 'standard' | 'strict' = 'standard'
 ): InterpretationFinding[] {
   const findings: InterpretationFinding[] = [];
-  const classification = classifyValue(hr, heartRateNormals);
+  if (hr === null || !Number.isFinite(hr) || hr <= 0) return findings;
+  const classification = classifyValue(hr, heartRateNormals, strictness);
 
   if (classification === 'high' || classification === 'borderline_high') {
     // Calculate severity based on % above upper limit
@@ -27,8 +29,8 @@ export function analyzeRate(
     const severity: Severity = percentAbove > 0.2 ? 'abnormal' : 'borderline';
 
     findings.push({
-      code: 'SINUS_TACHYCARDIA',
-      statement: `Sinus tachycardia (${Math.round(hr)} bpm, upper limit ${heartRateNormals.p98} for age)`,
+      code: 'RATE_HIGH',
+      statement: `High ventricular rate for age (${Math.round(hr)} bpm, upper reference limit ${heartRateNormals.p98})`,
       severity,
       category: 'rate',
       evidence: {
@@ -40,9 +42,7 @@ export function analyzeRate(
       ageAdjusted: true,
       pediatricSpecific: true,
       confidence: 0.9,
-      clinicalNote: severity === 'abnormal'
-        ? 'Consider causes: fever, pain, anxiety, dehydration, anemia, thyrotoxicosis'
-        : undefined,
+      clinicalNote: 'Rate alone does not establish sinus tachycardia; confirm atrial activity and rhythm origin.',
     });
   } else if (classification === 'low' || classification === 'borderline_low') {
     // Calculate severity based on % below lower limit
@@ -50,8 +50,8 @@ export function analyzeRate(
     const severity: Severity = percentBelow > 0.2 ? 'abnormal' : 'borderline';
 
     findings.push({
-      code: 'SINUS_BRADYCARDIA',
-      statement: `Sinus bradycardia (${Math.round(hr)} bpm, lower limit ${heartRateNormals.p2} for age)`,
+      code: 'RATE_LOW',
+      statement: `Low ventricular rate for age (${Math.round(hr)} bpm, lower reference limit ${heartRateNormals.p2})`,
       severity,
       category: 'rate',
       evidence: {
@@ -63,9 +63,7 @@ export function analyzeRate(
       ageAdjusted: true,
       pediatricSpecific: true,
       confidence: 0.9,
-      clinicalNote: severity === 'abnormal'
-        ? 'Consider: athletic conditioning, hypothyroidism, increased ICP, medications, sick sinus syndrome'
-        : undefined,
+      clinicalNote: 'Rate alone does not establish sinus bradycardia; confirm atrial activity and AV relationship.',
     });
   } else {
     // Normal heart rate

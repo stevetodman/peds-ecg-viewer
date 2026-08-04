@@ -8,7 +8,6 @@
  * @module renderer/layout/muse-layout
  */
 
-import type { LeadName } from '../../types';
 import {
   MUSE_SPEC,
   pixelsPerMm,
@@ -23,7 +22,7 @@ import {
  */
 export interface MuseLeadPanel {
   /** Lead name (e.g., 'I', 'V1', 'aVR') */
-  lead: LeadName | string;
+  lead: string;
   /** X position in pixels */
   x: number;
   /** Y position in pixels */

@@ -9,6 +9,7 @@ Usage:
 """
 
 import argparse
+import hashlib
 import json
 import logging
 import os
@@ -33,13 +34,14 @@ from ml.data.dataset_multilabel import (
     CONDITION_NAMES,
 )
 from ml.data.augmentations_v2 import get_train_augmentor
+from ml.data.preprocessing import PREPROCESSING_VERSION
 from ml.models.hybrid_model import (
     HybridFusionModel,
     hybrid_model_small,
     hybrid_model_medium,
     WeightedBCELoss,
 )
-from ml.models.rule_features import RuleFeatureExtractor
+from ml.models.rule_features import RuleFeatureExtractor, extract_batch_features
 
 try:
     from sklearn.metrics import roc_auc_score, average_precision_score
@@ -81,15 +83,37 @@ def compute_rule_features_cached(
 
     Since rule feature extraction is slow, we cache the results.
     """
+    if cache_path.suffix != '.npz':
+        raise ValueError("rule-feature cache path must use the .npz extension")
+    if dataset.augmentor is not None:
+        raise ValueError("rule features cannot be cached from an augmented dataset")
+
+    identity_payload = [
+        (str(row['Filename']), int(row['age_days']))
+        for _, row in dataset.df.iterrows()
+    ]
+    dataset_fingerprint = hashlib.sha256(
+        json.dumps(identity_payload, separators=(',', ':')).encode('utf-8')
+    ).hexdigest()
+
     if cache_path.exists():
         logger.info(f"Loading cached rule features from {cache_path}")
-        return np.load(cache_path)
+        with np.load(cache_path, allow_pickle=False) as cached:
+            cached_version = str(cached['preprocessing_version'].item())
+            cached_fingerprint = str(cached['dataset_fingerprint'].item())
+            cached_features = cached['features']
+        if cached_version != PREPROCESSING_VERSION:
+            raise RuntimeError("rule-feature cache uses incompatible preprocessing")
+        if cached_fingerprint != dataset_fingerprint:
+            raise RuntimeError("rule-feature cache does not match this dataset split")
+        if cached_features.shape != (len(dataset), 30) or not np.isfinite(cached_features).all():
+            raise RuntimeError("rule-feature cache is incomplete or invalid")
+        return cached_features.astype(np.float32, copy=False)
 
     logger.info(f"Computing rule features for {len(dataset)} samples...")
 
     extractor = RuleFeatureExtractor(sampling_rate=sampling_rate)
-    features = np.zeros((len(dataset), 30), dtype=np.float32)
-    success_count = 0
+    features = np.empty((len(dataset), 30), dtype=np.float32)
 
     for i in tqdm(range(len(dataset)), desc="Extracting rule features"):
         # Get sample without metadata
@@ -101,66 +125,32 @@ def compute_rule_features_cached(
 
         if result.extraction_success:
             features[i] = result.to_vector()
-            success_count += 1
+        else:
+            raise RuntimeError(
+                f"rule feature extraction failed for dataset item {i} "
+                f"({meta['filename']}): {result.error_message or 'unknown error'}"
+            )
 
-    logger.info(f"Successfully extracted features for {success_count}/{len(dataset)} samples")
+    if not np.isfinite(features).all():
+        raise RuntimeError("rule feature extraction produced non-finite values")
+    logger.info(f"Successfully extracted features for {len(dataset)}/{len(dataset)} samples")
 
     # Save cache
     cache_path.parent.mkdir(parents=True, exist_ok=True)
-    np.save(cache_path, features)
+    np.savez_compressed(
+        cache_path,
+        features=features,
+        preprocessing_version=np.array(PREPROCESSING_VERSION),
+        dataset_fingerprint=np.array(dataset_fingerprint),
+    )
     logger.info(f"Cached rule features to {cache_path}")
 
     return features
 
 
-class HybridDataLoader:
-    """
-    Wrapper that adds pre-computed rule features to batches.
-    """
-
-    def __init__(
-        self,
-        base_loader: DataLoader,
-        rule_features: np.ndarray,
-        dataset: ZZUMultiLabelDataset,
-    ):
-        self.base_loader = base_loader
-        self.rule_features = torch.tensor(rule_features, dtype=torch.float32)
-        self.dataset = dataset
-
-    def __len__(self):
-        return len(self.base_loader)
-
-    def __iter__(self):
-        # Get indices from dataset's internal order
-        # This is tricky - we need to know which indices are being loaded
-
-        # For now, use a simpler approach: iterate and match by batch index
-        batch_start_idx = 0
-
-        for batch_idx, batch in enumerate(self.base_loader):
-            signal, labels, lead_mask, age = batch
-
-            batch_size = signal.shape[0]
-            batch_end_idx = batch_start_idx + batch_size
-
-            # Get corresponding rule features
-            # Note: This assumes sequential iteration through the dataset
-            # For shuffled data, this won't match correctly
-
-            # For shuffled data, we need a different approach
-            # Let's use a placeholder that works for evaluation at least
-            batch_rule_features = torch.zeros(batch_size, 30)
-
-            yield signal, labels, lead_mask, age, batch_rule_features
-
-            batch_start_idx = batch_end_idx
-
-
 def compute_metrics(
     model: HybridFusionModel,
     dataloader: DataLoader,
-    rule_features: np.ndarray,
     device: torch.device,
     criterion: nn.Module,
 ) -> Dict:
@@ -176,21 +166,15 @@ def compute_metrics(
     total_loss = 0.0
     n_batches = 0
 
-    # Create feature extractor for samples where we need fresh extraction
-    extractor = RuleFeatureExtractor(sampling_rate=500)
-
     with torch.no_grad():
-        for batch_idx, batch in enumerate(dataloader):
+        for batch in dataloader:
             signal, labels, lead_mask, age = batch
-
-            batch_size = signal.shape[0]
-
-            # For evaluation, extract rule features on-the-fly
-            # This is slow but ensures correctness
-            batch_rule_features = torch.zeros(batch_size, 30)
-            for i in range(batch_size):
-                # Use placeholder - in production would extract properly
-                pass
+            batch_rule_features = torch.tensor(
+                extract_batch_features(
+                    signal.numpy(), age.squeeze(1).numpy() * 5110.0, sampling_rate=500
+                ),
+                dtype=torch.float32,
+            )
 
             signal = signal.to(device)
             labels = labels.to(device)
@@ -226,7 +210,7 @@ def compute_metrics(
                 try:
                     auroc = roc_auc_score(y_true, y_score)
                     metrics[f'auroc_{condition}'] = auroc
-                except:
+                except ValueError:
                     metrics[f'auroc_{condition}'] = 0.5
 
         # Mean AUROC
@@ -254,10 +238,12 @@ def train_epoch(
     for batch in tqdm(dataloader, desc="Training", leave=False):
         signal, labels, lead_mask, age = batch
 
-        batch_size = signal.shape[0]
-
-        # Use zero rule features for now (will implement proper extraction later)
-        batch_rule_features = torch.zeros(batch_size, 30)
+        batch_rule_features = torch.tensor(
+            extract_batch_features(
+                signal.numpy(), age.squeeze(1).numpy() * 5110.0, sampling_rate=500
+            ),
+            dtype=torch.float32,
+        )
 
         signal = signal.to(device)
         labels = labels.to(device)
@@ -346,19 +332,23 @@ def train(
 
     # Resume from checkpoint
     start_epoch = 0
-    best_auroc = 0.0
+    best_auroc = float('-inf')
     if resume:
-        checkpoint = torch.load(resume, map_location=device)
+        checkpoint = torch.load(resume, map_location=device, weights_only=True)
+        if checkpoint.get('preprocessing_version') != PREPROCESSING_VERSION:
+            raise RuntimeError("resume checkpoint uses incompatible preprocessing")
+        if checkpoint.get('rule_features') != 'required':
+            raise RuntimeError("resume checkpoint was not trained with real rule features")
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         start_epoch = checkpoint['epoch'] + 1
-        best_auroc = checkpoint.get('best_auroc', 0.0)
-        logger.info(f"Resumed from epoch {start_epoch}, best AUROC: {best_auroc:.4f}")
+        logger.info(f"Resumed weights from epoch {start_epoch}; validation restarts for this run")
 
     # Training loop
     logger.info(f"Training for {epochs} epochs (patience={patience})...")
 
     epochs_without_improvement = 0
+    best_path = CHECKPOINT_DIR / f"best_hybrid_{timestamp}.pt"
 
     for epoch in range(start_epoch, epochs):
         # Train
@@ -367,11 +357,13 @@ def train(
         )
 
         # Validate
-        val_metrics = compute_metrics(model, val_loader, None, device, criterion)
+        val_metrics = compute_metrics(model, val_loader, device, criterion)
 
         # Extract key metrics
         val_loss = val_metrics['loss']
         val_auroc = val_metrics.get('auroc_mean', 0.0)
+        if not np.isfinite(val_loss) or not np.isfinite(val_auroc):
+            raise RuntimeError("validation produced non-finite metrics")
 
         # Log progress
         logger.info(
@@ -395,13 +387,16 @@ def train(
             epochs_without_improvement = 0
 
             # Save best model
-            best_path = CHECKPOINT_DIR / f"best_hybrid_{timestamp}.pt"
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'best_auroc': best_auroc,
                 'val_metrics': val_metrics,
+                'preprocessing_version': PREPROCESSING_VERSION,
+                'rule_features': 'required',
+                'model_architecture': f'hybrid_{model_size}',
+                'conditions': CONDITION_NAMES,
             }, best_path)
             logger.info(f"  -> New best model! AUROC: {best_auroc:.4f}")
         else:
@@ -416,10 +411,10 @@ def train(
     logger.info("Evaluating on test set...")
 
     # Load best model
-    best_checkpoint = torch.load(best_path, map_location=device)
+    best_checkpoint = torch.load(best_path, map_location=device, weights_only=True)
     model.load_state_dict(best_checkpoint['model_state_dict'])
 
-    test_metrics = compute_metrics(model, test_loader, None, device, criterion)
+    test_metrics = compute_metrics(model, test_loader, device, criterion)
 
     logger.info("=" * 50)
     logger.info("FINAL TEST RESULTS")

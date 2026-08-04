@@ -8,16 +8,32 @@
  */
 
 export interface ECGMeasurements {
-  hr: number;           // Heart rate (bpm)
-  rr: number;           // R-R interval (ms)
-  pr: number;           // PR interval (ms)
-  qrs: number;          // QRS duration (ms)
-  qt: number;           // QT interval (ms)
-  qtc: number;          // Corrected QT (Bazett's formula)
-  pAxis: number;        // P wave axis (degrees)
-  qrsAxis: number;      // QRS axis (degrees)
-  tAxis: number;        // T wave axis (degrees)
+  hr: number | null;           // Heart rate (bpm)
+  rr: number | null;           // R-R interval (ms)
+  pr: number | null;           // PR interval (ms)
+  qrs: number | null;          // QRS duration (ms)
+  qt: number | null;           // QT interval (ms)
+  qtc: number | null;          // Corrected QT (Bazett's formula)
+  pAxis: number | null;        // P wave axis (degrees)
+  qrsAxis: number | null;      // QRS axis (degrees)
+  tAxis: number | null;        // T wave axis (degrees)
+  provenance: MeasurementProvenance;
 }
+
+/** `reported` means a caller supplied a value without detector provenance. */
+export type MeasurementSource = 'detected' | 'derived' | 'reported' | 'unavailable';
+
+export interface MeasurementEvidence {
+  source: MeasurementSource;
+  method: string;
+  reason?: string;
+  beatsUsed?: number;
+}
+
+export type MeasurementProvenance = Record<
+  'hr' | 'rr' | 'pr' | 'qrs' | 'qt' | 'qtc' | 'pAxis' | 'qrsAxis' | 'tAxis',
+  MeasurementEvidence
+>;
 
 export interface RWaveDetection {
   index: number;        // Sample index of R peak
@@ -115,16 +131,16 @@ export function detectRWaves(
 /**
  * Calculate heart rate from R-R intervals
  */
-export function calculateHeartRate(rWaves: RWaveDetection[]): number {
+export function calculateHeartRate(rWaves: RWaveDetection[]): number | null {
   if (rWaves.length < 2) {
-    return 0;
+    return null;
   }
 
   // Use median R-R interval to be robust against outliers
   const rrIntervals = rWaves.slice(1).map(r => r.rr).filter(rr => rr > 0);
 
   if (rrIntervals.length === 0) {
-    return 0;
+    return null;
   }
 
   rrIntervals.sort((a, b) => a - b);
@@ -141,9 +157,14 @@ export function calculateQRSDuration(
   samples: number[],
   sampleRate: number,
   rWaves: RWaveDetection[]
-): number {
-  if (rWaves.length < 2) {
-    return 80; // Default value
+): number | null {
+  if (
+    !Number.isFinite(sampleRate) || sampleRate <= 0 ||
+    !Array.isArray(samples) || samples.length === 0 ||
+    samples.some(value => !Number.isFinite(value)) ||
+    rWaves.length < 2
+  ) {
+    return null;
   }
 
   const qrsDurations: number[] = [];
@@ -178,8 +199,10 @@ export function calculateQRSDuration(
     }
   }
 
-  if (qrsDurations.length === 0) {
-    return 80; // Default
+  // A single eligible beat is not enough to support a representative QRS
+  // duration. Fail closed instead of reporting a fragile value.
+  if (qrsDurations.length < 2) {
+    return null;
   }
 
   // Return median
@@ -195,24 +218,11 @@ export function calculatePRInterval(
   _samples: number[],
   _sampleRate: number,
   rWaves: RWaveDetection[]
-): number {
-  if (rWaves.length < 2) {
-    return 160; // Default value
-  }
-
-  // For pediatric ECGs, PR interval is typically shorter
-  // Normal range: 80-200ms depending on age and heart rate
-  const hr = calculateHeartRate(rWaves);
-
-  // PR interval tends to shorten with higher heart rates
-  // Using a simplified estimation based on heart rate
-  if (hr > 150) {
-    return 100; // Fast HR = shorter PR
-  } else if (hr > 100) {
-    return 120;
-  } else {
-    return 160;
-  }
+): number | null {
+  // PR requires a validated P-wave onset and QRS onset. Heart-rate-based
+  // substitution fabricates conduction evidence and is therefore prohibited.
+  void rWaves;
+  return null;
 }
 
 /**
@@ -222,10 +232,17 @@ export function calculateQTInterval(
   samples: number[],
   sampleRate: number,
   rWaves: RWaveDetection[],
-  qrsDuration: number
-): number {
+  qrsDuration: number | null
+): number | null {
+  if (
+    qrsDuration === null || !Number.isFinite(qrsDuration) || qrsDuration <= 0 ||
+    !Number.isFinite(sampleRate) || sampleRate <= 0 ||
+    !Array.isArray(samples) || samples.length === 0 || samples.some(value => !Number.isFinite(value))
+  ) {
+    return null;
+  }
   if (rWaves.length < 2) {
-    return 400; // Default
+    return null;
   }
 
   const qtIntervals: number[] = [];
@@ -236,6 +253,7 @@ export function calculateQTInterval(
 
     // QRS onset (estimate based on QRS duration)
     const qrsOnset = rWave.index - Math.round((qrsDuration / 1000) * sampleRate * 0.4);
+    if (qrsOnset <= 0 || qrsOnset >= samples.length) continue;
 
     // Search for T wave end between this R wave and next R wave
     const searchStart = rWave.index + Math.round(0.15 * sampleRate); // After S wave
@@ -251,6 +269,7 @@ export function calculateQTInterval(
       Math.max(0, qrsOnset - Math.round(0.05 * sampleRate)),
       qrsOnset
     );
+    if (baselineRegion.length === 0) continue;
     const baseline = baselineRegion.reduce((a, b) => a + b, 0) / baselineRegion.length;
 
     // Find T wave peak first
@@ -282,8 +301,8 @@ export function calculateQTInterval(
     }
   }
 
-  if (qtIntervals.length === 0) {
-    return 400; // Default
+  if (qtIntervals.length < 2) {
+    return null;
   }
 
   // Return median
@@ -295,9 +314,9 @@ export function calculateQTInterval(
  * Calculate QTc using Bazett's formula
  * QTc = QT / sqrt(RR in seconds)
  */
-export function calculateQTc(qt: number, rr: number): number {
-  if (rr <= 0) {
-    return qt;
+export function calculateQTc(qt: number | null, rr: number | null): number | null {
+  if (qt === null || rr === null || !Number.isFinite(qt) || !Number.isFinite(rr) || rr <= 0) {
+    return null;
   }
   const rrSeconds = rr / 1000;
   return Math.round(qt / Math.sqrt(rrSeconds));
@@ -307,9 +326,13 @@ export function calculateQTc(qt: number, rr: number): number {
  * Calculate electrical axis from leads I and aVF
  * Uses the hexaxial reference system
  */
-export function calculateAxis(leadI: number[], leadAVF: number[]): number {
+export function calculateAxis(leadI: number[], leadAVF: number[]): number | null {
   if (!leadI || !leadAVF || leadI.length === 0 || leadAVF.length === 0) {
-    return 60; // Normal default
+    return null;
+  }
+
+  if (leadI.length !== leadAVF.length || leadI.some(v => !Number.isFinite(v)) || leadAVF.some(v => !Number.isFinite(v))) {
+    return null;
   }
 
   // Calculate net QRS amplitude (sum of positive and negative deflections)
@@ -327,8 +350,53 @@ export function calculateAxis(leadI: number[], leadAVF: number[]): number {
   return Math.round(axisDegrees);
 }
 
+/** Calculate a frontal QRS axis from beat-aligned QRS windows. */
+function calculateBeatAlignedAxis(
+  leadI: number[],
+  leadAVF: number[],
+  rWaves: RWaveDetection[],
+  sampleRate: number
+): { value: number | null; beatsUsed: number } {
+  if (
+    leadI.length !== leadAVF.length ||
+    !Number.isFinite(sampleRate) ||
+    sampleRate <= 0 ||
+    rWaves.length < 2
+  ) {
+    return { value: null, beatsUsed: 0 };
+  }
+
+  const before = Math.round(sampleRate * 0.06);
+  const after = Math.round(sampleRate * 0.1);
+  const netI: number[] = [];
+  const netAVF: number[] = [];
+
+  for (const beat of rWaves) {
+    const start = beat.index - before;
+    const end = beat.index + after;
+    if (start < 0 || end > leadI.length || end > leadAVF.length) continue;
+    const iSegment = leadI.slice(start, end);
+    const avfSegment = leadAVF.slice(start, end);
+    if (iSegment.some(v => !Number.isFinite(v)) || avfSegment.some(v => !Number.isFinite(v))) continue;
+    netI.push(calculateNetAmplitude(iSegment));
+    netAVF.push(calculateNetAmplitude(avfSegment));
+  }
+
+  if (netI.length < 2) return { value: null, beatsUsed: netI.length };
+  const median = (values: number[]): number => {
+    const sorted = [...values].sort((a, b) => a - b);
+    return sorted[Math.floor(sorted.length / 2)];
+  };
+  const i = median(netI);
+  const avf = median(netAVF);
+  if (Math.abs(i) + Math.abs(avf) < Number.EPSILON) {
+    return { value: null, beatsUsed: netI.length };
+  }
+  return { value: Math.round(Math.atan2(avf, i) * 180 / Math.PI), beatsUsed: netI.length };
+}
+
 /**
- * Calculate net amplitude of a waveform segment
+ * Calculate the signed net deflection of a waveform segment about its mean.
  */
 function calculateNetAmplitude(samples: number[]): number {
   if (!samples || samples.length === 0) return 0;
@@ -358,6 +426,18 @@ export function calculateECGMeasurements(
   leadAVF: number[],
   sampleRate: number
 ): ECGMeasurements {
+  const unavailable = (method: string, reason: string): MeasurementEvidence => ({
+    source: 'unavailable',
+    method,
+    reason,
+  });
+
+  if (!Number.isFinite(sampleRate) || sampleRate <= 0) {
+    throw new RangeError('sampleRate must be a finite positive number');
+  }
+  if (![leadII, leadI, leadAVF].every(lead => Array.isArray(lead) && lead.every(Number.isFinite))) {
+    throw new TypeError('ECG leads must be finite numeric arrays');
+  }
   // Detect R waves from lead II (best for rhythm analysis)
   const rWaves = detectRWaves(leadII, sampleRate);
 
@@ -366,9 +446,10 @@ export function calculateECGMeasurements(
 
   // Calculate R-R interval
   const rrIntervals = rWaves.slice(1).map(r => r.rr).filter(rr => rr > 0);
+  rrIntervals.sort((a, b) => a - b);
   const rr = rrIntervals.length > 0
-    ? Math.round(rrIntervals.reduce((a, b) => a + b, 0) / rrIntervals.length)
-    : Math.round(60000 / (hr || 75));
+    ? Math.round(rrIntervals[Math.floor(rrIntervals.length / 2)])
+    : null;
 
   // Calculate intervals
   const qrs = calculateQRSDuration(leadII, sampleRate, rWaves);
@@ -377,12 +458,13 @@ export function calculateECGMeasurements(
   const qtc = calculateQTc(qt, rr);
 
   // Calculate axes
-  const qrsAxis = calculateAxis(leadI, leadAVF);
+  const qrsAxisResult = calculateBeatAlignedAxis(leadI, leadAVF, rWaves, sampleRate);
+  const qrsAxis = qrsAxisResult.value;
 
-  // P and T axes are harder to calculate accurately
-  // Using simplified estimates based on QRS axis
-  const pAxis = qrsAxis; // P axis usually follows QRS axis
-  const tAxis = qrsAxis > 0 ? qrsAxis - 20 : qrsAxis + 20; // T axis usually close to QRS
+  // P and T axes require separately delineated P/T windows. Never derive them
+  // from the QRS axis.
+  const pAxis = null;
+  const tAxis = null;
 
   return {
     hr,
@@ -393,6 +475,29 @@ export function calculateECGMeasurements(
     qtc,
     pAxis,
     qrsAxis,
-    tAxis: Math.round(tAxis)
+    tAxis,
+    provenance: {
+      hr: hr === null
+        ? unavailable('median_rr', 'Fewer than two valid R peaks')
+        : { source: 'derived', method: '60000 / median RR', beatsUsed: rWaves.length },
+      rr: rr === null
+        ? unavailable('median_rr', 'No valid RR intervals')
+        : { source: 'detected', method: 'median detected RR', beatsUsed: rrIntervals.length },
+      pr: unavailable('p_qrs_delineation', 'Validated P-wave and QRS onset delineation is not implemented'),
+      qrs: qrs === null
+        ? unavailable('qrs_delineation', 'Insufficient valid QRS complexes')
+        : { source: 'detected', method: 'median QRS onset-to-offset', beatsUsed: rWaves.length },
+      qt: qt === null
+        ? unavailable('qt_delineation', 'Validated QRS onset/T-wave end pair unavailable')
+        : { source: 'detected', method: 'median QRS-onset to T-end', beatsUsed: Math.max(0, rWaves.length - 1) },
+      qtc: qtc === null
+        ? unavailable('bazett', 'QT or RR unavailable')
+        : { source: 'derived', method: 'Bazett QTc from detected QT and median RR' },
+      pAxis: unavailable('p_axis', 'P-wave windows were not delineated'),
+      qrsAxis: qrsAxis === null
+        ? unavailable('beat_aligned_frontal_axis', 'Insufficient aligned lead I/aVF QRS windows')
+        : { source: 'derived', method: 'median beat-aligned lead I/aVF QRS vectors', beatsUsed: qrsAxisResult.beatsUsed },
+      tAxis: unavailable('t_axis', 'T-wave windows were not delineated'),
+    },
   };
 }

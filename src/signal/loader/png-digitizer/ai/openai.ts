@@ -20,6 +20,7 @@ const RESPONSES_API_MODELS = ['gpt-5.2-pro', 'gpt-5-pro', 'gpt-5.2'];
  */
 export class OpenAIProvider extends BaseAIProvider {
   name = 'openai';
+  readonly privacyProvider = 'openai' as const;
 
   constructor(apiKey: string, model?: string) {
     super(apiKey, model);

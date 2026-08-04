@@ -465,15 +465,20 @@ def extract_batch_features(
     """
     extractor = RuleFeatureExtractor(sampling_rate)
     batch_size = signals.shape[0]
-    features = np.zeros((batch_size, 30), dtype=np.float32)
+    features = np.empty((batch_size, 30), dtype=np.float32)
 
     for i in range(batch_size):
         result = extractor.extract(signals[i], int(ages[i]))
         if result.extraction_success:
             features[i] = result.to_vector()
         else:
-            # Use zeros for failed extractions (model should learn to handle)
-            features[i] = np.zeros(30, dtype=np.float32)
+            raise RuntimeError(
+                f"rule feature extraction failed for batch item {i}: "
+                f"{result.error_message or 'unknown extraction error'}"
+            )
+
+    if not np.isfinite(features).all():
+        raise RuntimeError("rule feature extraction produced non-finite values")
 
     return features
 

@@ -6,7 +6,13 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['tests/**/*.test.ts'],
-    exclude: ['tests/visual/**'],
+    exclude: [
+      'tests/visual/**',
+      // The digitizer is intentionally quarantined from the release path.
+      // Its accuracy gate remains executable via test:digitizer:research and
+      // must pass before that subsystem can be re-enabled.
+      'tests/integration/digitizer/round-trip.test.ts',
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

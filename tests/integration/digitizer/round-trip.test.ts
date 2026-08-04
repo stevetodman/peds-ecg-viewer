@@ -538,6 +538,7 @@ describe('PNG Digitizer Round-Trip Tests', () => {
       const original = groundTruth.signal['II'];
       const recon = reconstructed.leads.II!;
       const correlation = calculateCorrelation(original, recon);
+      console.info('DEBUG lead II', { correlation, traceLength: trace.xPixels.length, reconLength: recon.length, first: recon.slice(0, 20) });
 
       // ECG waveforms should have reasonable correlation
       // (lower than sine due to sharp peaks being harder to trace)
@@ -718,6 +719,7 @@ describe('PNG Digitizer Round-Trip Tests', () => {
         if (original && recon && recon.length > 0) {
           const rmse = calculateRMSE(original, recon);
           const correlation = calculateCorrelation(original, recon);
+          console.info('DEBUG all', { lead, correlation, traceLength: traces.find(t => t.lead === lead)?.xPixels.length, reconLength: recon.length, original: original.slice(80, 170), recon: recon.slice(80, 170) });
 
           // RMSE should be reasonable (depends on amplitude)
           // For signals with amplitude ~1000µV, RMSE of 500 is ~50% error

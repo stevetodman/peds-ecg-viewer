@@ -14,6 +14,12 @@ export { XAIProvider, EnsembleProvider, createEnsembleProvider } from './ensembl
 export type { EnsembleConfig, XAIConfig } from './ensemble';
 export { getAnalysisPrompt, getQuickAnalysisPrompt, getGridAnalysisPrompt } from './prompts';
 export { parseAIResponse } from './response-parser';
+export { AI_PROVIDER_DESTINATIONS, AITransmissionBlockedError } from './privacy';
+export type {
+  AITransmissionAuthorization,
+  AITransmissionAuthorizationRequest,
+  ExternalAIProvider,
+} from './privacy';
 export { validateAnalysis, hasMinimumData, getValidationIssues } from './validator';
 export {
   OCRMetadataExtractor,

@@ -104,34 +104,27 @@ describe('Edge Cases', () => {
     const ageDays = ageToDays(10, 'years');
     const normals = getNormalsForAge(ageDays);
 
-    it('QTc exactly 450ms should be normal (not borderline)', () => {
-      const findings = analyzeIntervals(140, 80, 450, 80, normals, ageDays);
+    it('QTc exactly at the age-specific p98 is a borderline reference-edge finding', () => {
+      const findings = analyzeIntervals(140, 80, normals.qtcBazett.p98, 80, normals, ageDays);
       const qtcFinding = findings.find(f => f.code === 'QTC_BORDERLINE' || f.code === 'QTC_PROLONGED');
-      expect(qtcFinding).toBeUndefined();
+      expect(qtcFinding?.code).toBe('QTC_BORDERLINE');
     });
 
-    it('QTc exactly 451ms should be borderline', () => {
-      const findings = analyzeIntervals(140, 80, 451, 80, normals, ageDays);
-      const qtcFinding = findings.find(f => f.code === 'QTC_BORDERLINE');
-      expect(qtcFinding).toBeDefined();
-      expect(qtcFinding?.severity).toBe('borderline');
-    });
-
-    it('QTc exactly 470ms should be borderline (not abnormal)', () => {
-      const findings = analyzeIntervals(140, 80, 470, 80, normals, ageDays);
-      const qtcFinding = findings.find(f => f.code === 'QTC_BORDERLINE');
-      expect(qtcFinding).toBeDefined();
-      expect(qtcFinding?.severity).toBe('borderline');
-    });
-
-    it('QTc exactly 471ms should be abnormal', () => {
-      const findings = analyzeIntervals(140, 80, 471, 80, normals, ageDays);
+    it('QTc one millisecond above the age-specific p98 is prolonged', () => {
+      const findings = analyzeIntervals(140, 80, normals.qtcBazett.p98 + 1, 80, normals, ageDays);
       const qtcFinding = findings.find(f => f.code === 'QTC_PROLONGED');
       expect(qtcFinding).toBeDefined();
       expect(qtcFinding?.severity).toBe('abnormal');
     });
 
-    it('QTc exactly 500ms should be abnormal (not critical)', () => {
+    it('QTc uses the selected age-specific reference rather than a fixed 470ms cutoff', () => {
+      const findings = analyzeIntervals(140, 80, normals.qtcBazett.p98 + 20, 80, normals, ageDays);
+      const qtcFinding = findings.find(f => f.code === 'QTC_PROLONGED');
+      expect(qtcFinding).toBeDefined();
+      expect(qtcFinding?.severity).toBe('abnormal');
+    });
+
+    it('QTc at 500ms is not critical but remains abnormal', () => {
       const findings = analyzeIntervals(140, 80, 500, 80, normals, ageDays);
       const qtcFinding = findings.find(f => f.code === 'QTC_PROLONGED');
       expect(qtcFinding).toBeDefined();
@@ -145,42 +138,35 @@ describe('Edge Cases', () => {
       expect(qtcFinding?.severity).toBe('critical');
     });
 
-    it('QTc exactly 340ms should be normal (not short)', () => {
-      const findings = analyzeIntervals(140, 80, 340, 80, normals, ageDays);
+    it('QTc at the age-specific p2 is a borderline reference-edge finding', () => {
+      const findings = analyzeIntervals(140, 80, normals.qtcBazett.p2, 80, normals, ageDays);
       const qtcFinding = findings.find(f => f.code === 'QTC_SHORT');
-      expect(qtcFinding).toBeUndefined();
+      expect(qtcFinding?.severity).toBe('borderline');
     });
 
-    it('QTc exactly 339ms should be short', () => {
-      const findings = analyzeIntervals(140, 80, 339, 80, normals, ageDays);
+    it('QTc below the age-specific p2 is short', () => {
+      const findings = analyzeIntervals(140, 80, normals.qtcBazett.p2 - 1, 80, normals, ageDays);
       const qtcFinding = findings.find(f => f.code === 'QTC_SHORT');
       expect(qtcFinding).toBeDefined();
     });
   });
 
   describe('Heart Rate Boundary Values', () => {
-    // Note: classifyValue uses adjusted thresholds for standard strictness:
-    // lowThreshold = p2 * 1.02, highThreshold = p98 * 0.98
-    // This means values at exactly p2/p98 are classified as abnormal
-
-    it('HR at exactly p98 should be tachycardia (above adjusted threshold)', () => {
+    it('HR at exactly p98 is a borderline high-rate finding, not an out-of-range high value', () => {
       const ageDays = ageToDays(5, 'years');
       const normals = getNormalsForAge(ageDays);
       const hrAtP98 = normals.heartRate.p98; // 140 for 3-5yr
 
-      // p98 > p98 * 0.98 (140 > 137.2), so classified as 'high'
       const findings = analyzeRate(hrAtP98, normals.heartRate, ageDays);
-      expect(findings[0].code).toBe('SINUS_TACHYCARDIA');
+      expect(findings[0].code).toBe('RATE_HIGH');
+      expect(findings[0].severity).toBe('borderline');
     });
 
-    it('HR at 98% of p98 should be normal (at threshold)', () => {
+    it('strict mode contracts the reference interval', () => {
       const ageDays = ageToDays(5, 'years');
       const normals = getNormalsForAge(ageDays);
-      const hrAtThreshold = Math.floor(normals.heartRate.p98 * 0.98);
-
-      const findings = analyzeRate(hrAtThreshold, normals.heartRate, ageDays);
-      // At or below threshold, should be normal or borderline_high
-      expect(['RATE_NORMAL', 'SINUS_TACHYCARDIA']).toContain(findings[0].code);
+      const findings = analyzeRate(normals.heartRate.p98, normals.heartRate, ageDays, 'strict');
+      expect(findings[0].code).toBe('RATE_HIGH');
     });
 
     it('HR well above p98 should be tachycardia', () => {
@@ -189,17 +175,17 @@ describe('Edge Cases', () => {
       const hrAboveP98 = normals.heartRate.p98 + 10;
 
       const findings = analyzeRate(hrAboveP98, normals.heartRate, ageDays);
-      expect(findings[0].code).toBe('SINUS_TACHYCARDIA');
+      expect(findings[0].code).toBe('RATE_HIGH');
     });
 
-    it('HR at exactly p2 should be bradycardia (below adjusted threshold)', () => {
+    it('HR at exactly p2 is a borderline low-rate finding, not an out-of-range low value', () => {
       const ageDays = ageToDays(5, 'years');
       const normals = getNormalsForAge(ageDays);
       const hrAtP2 = normals.heartRate.p2; // 70 for 3-5yr
 
-      // p2 < p2 * 1.02 (70 < 71.4), so classified as 'low'
       const findings = analyzeRate(hrAtP2, normals.heartRate, ageDays);
-      expect(findings[0].code).toBe('SINUS_BRADYCARDIA');
+      expect(findings[0].code).toBe('RATE_LOW');
+      expect(findings[0].severity).toBe('borderline');
     });
 
     it('HR well below p2 should be bradycardia', () => {
@@ -208,7 +194,7 @@ describe('Edge Cases', () => {
       const hrBelowP2 = normals.heartRate.p2 - 10;
 
       const findings = analyzeRate(hrBelowP2, normals.heartRate, ageDays);
-      expect(findings[0].code).toBe('SINUS_BRADYCARDIA');
+      expect(findings[0].code).toBe('RATE_LOW');
     });
 
     it('HR at p50 (median) should be normal', () => {
@@ -286,7 +272,7 @@ describe('Edge Cases', () => {
       expect(result).toBeDefined();
       expect(result.summary.conclusion).toBeDefined();
       // Should still produce a tachycardia finding
-      const tachyFinding = result.findings.find(f => f.code === 'SINUS_TACHYCARDIA');
+      const tachyFinding = result.findings.find(f => f.code === 'RATE_HIGH');
       expect(tachyFinding).toBeDefined();
     });
 
@@ -297,7 +283,7 @@ describe('Edge Cases', () => {
       const result = interpretECG(input, ageDays);
       expect(result).toBeDefined();
       // Should still produce a bradycardia finding
-      const bradyFinding = result.findings.find(f => f.code === 'SINUS_BRADYCARDIA');
+      const bradyFinding = result.findings.find(f => f.code === 'RATE_LOW');
       expect(bradyFinding).toBeDefined();
     });
 
@@ -344,18 +330,12 @@ describe('Edge Cases', () => {
   });
 
   describe('Percentile Boundary Cases', () => {
-    // classifyValue uses adjusted thresholds:
-    // lowThreshold = p2 * 1.02, highThreshold = p98 * 0.98
-    // Values at exactly p2 are below lowThreshold → 'low'
-    // Values at exactly p98 are above highThreshold → 'high'
-
-    it('should classify value at exactly p2 as low (below adjusted threshold)', () => {
+    it('classifies the published p2 endpoint as a borderline low-rate finding', () => {
       const ageDays = ageToDays(5, 'years');
       const normals = getNormalsForAge(ageDays);
 
-      // p2 < p2 * 1.02, so classified as 'low' → bradycardia
       const findings = analyzeRate(normals.heartRate.p2, normals.heartRate, ageDays);
-      expect(findings[0].code).toBe('SINUS_BRADYCARDIA');
+      expect(findings[0].code).toBe('RATE_LOW');
     });
 
     it('should correctly classify value at exactly p50 as normal', () => {
@@ -366,13 +346,12 @@ describe('Edge Cases', () => {
       expect(findings[0].code).toBe('RATE_NORMAL');
     });
 
-    it('should classify value at exactly p98 as high (above adjusted threshold)', () => {
+    it('classifies the published p98 endpoint as a borderline high-rate finding', () => {
       const ageDays = ageToDays(5, 'years');
       const normals = getNormalsForAge(ageDays);
 
-      // p98 > p98 * 0.98, so classified as 'high' → tachycardia
       const findings = analyzeRate(normals.heartRate.p98, normals.heartRate, ageDays);
-      expect(findings[0].code).toBe('SINUS_TACHYCARDIA');
+      expect(findings[0].code).toBe('RATE_HIGH');
     });
 
     it('should classify values in safe middle range as normal', () => {
@@ -400,10 +379,10 @@ describe('Edge Cases', () => {
       const teenFindings = analyzeRate(180, teenNormals.heartRate, ageToDays(15, 'years'));
 
       // 180 should be normal or borderline for neonate (p98 ~180)
-      expect(['RATE_NORMAL', 'SINUS_TACHYCARDIA']).toContain(neonateFindings[0].code);
+      expect(['RATE_NORMAL', 'RATE_HIGH']).toContain(neonateFindings[0].code);
 
       // 180 should definitely be tachycardia for teen (p98 ~100)
-      expect(teenFindings[0].code).toBe('SINUS_TACHYCARDIA');
+      expect(teenFindings[0].code).toBe('RATE_HIGH');
     });
 
     it('HR of 50 should be bradycardia for child but potentially normal for athletic teen', () => {
@@ -413,7 +392,7 @@ describe('Edge Cases', () => {
       const childFindings = analyzeRate(50, childNormals.heartRate, ageToDays(5, 'years'));
 
       // 50 should be bradycardia for child (p2 ~70)
-      expect(childFindings[0].code).toBe('SINUS_BRADYCARDIA');
+      expect(childFindings[0].code).toBe('RATE_LOW');
     });
   });
 
@@ -433,7 +412,7 @@ describe('Edge Cases', () => {
       expect(result.summary.conclusion).toBe('Abnormal ECG');
       expect(result.summary.urgency).toBe('critical');
 
-      const tachyFinding = result.findings.find(f => f.code === 'SINUS_TACHYCARDIA');
+      const tachyFinding = result.findings.find(f => f.code === 'RATE_HIGH');
       const qtcFinding = result.findings.find(f => f.code === 'QTC_PROLONGED');
       const axisFinding = result.findings.find(f => f.code === 'EXTREME_AXIS');
 

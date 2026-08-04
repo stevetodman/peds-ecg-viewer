@@ -75,13 +75,15 @@ describe('getAgeGroup', () => {
     expect(getAgeGroup(seventeenyears).id).toBe('adolescent_16_18yr');
   });
 
-  it('should return last group for age > 18 years', () => {
+  it('should reject ages beyond the pediatric reference population', () => {
     const twentyyears = ageToDays(20, 'years');
-    expect(getAgeGroup(twentyyears).id).toBe('adolescent_16_18yr');
+    expect(() => getAgeGroup(twentyyears)).toThrow(RangeError);
   });
 
-  it('should handle negative age gracefully', () => {
-    expect(getAgeGroup(-1).id).toBe('neonate_0_24h');
+  it('should reject negative and non-finite ages', () => {
+    expect(() => getAgeGroup(-1)).toThrow(RangeError);
+    expect(() => getAgeGroup(Number.NaN)).toThrow(RangeError);
+    expect(() => getAgeGroup(Number.POSITIVE_INFINITY)).toThrow(RangeError);
   });
 });
 
@@ -140,6 +142,10 @@ describe('isPediatric', () => {
 });
 
 describe('ageToDays', () => {
+  it('should reject negative and non-finite values', () => {
+    expect(() => ageToDays(-1, 'days')).toThrow(RangeError);
+    expect(() => ageToDays(Number.NaN, 'years')).toThrow(RangeError);
+  });
   it('should convert days correctly', () => {
     expect(ageToDays(5, 'days')).toBe(5);
   });

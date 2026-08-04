@@ -39,15 +39,18 @@ export type ImageSource = File | Blob | string | ImageData | HTMLCanvasElement;
  * Orchestrates the conversion of ECG images to digital signals
  */
 export class ECGDigitizer {
-  private config: Required<Omit<DigitizerConfig, 'interactive'>> & Pick<DigitizerConfig, 'interactive'>;
+  private config: Required<Omit<DigitizerConfig, 'interactive' | 'aiTransmissionAuthorization'>> &
+    Pick<DigitizerConfig, 'interactive' | 'aiTransmissionAuthorization'>;
 
   constructor(config: DigitizerConfig = {}) {
     const aiProvider = config.aiProvider ?? 'anthropic';
+    const providerType = aiProvider === 'none' ? undefined : aiProvider as AIProviderType;
 
     this.config = {
       aiProvider,
-      apiKey: config.apiKey ?? getEnvApiKey(aiProvider as AIProviderType) ?? '',
-      model: config.model ?? getDefaultModel(aiProvider as AIProviderType),
+      apiKey: config.apiKey ?? (providerType ? getEnvApiKey(providerType) : '') ?? '',
+      aiTransmissionAuthorization: config.aiTransmissionAuthorization,
+      model: config.model ?? (providerType ? getDefaultModel(providerType) : ''),
       aiConfidenceThreshold: config.aiConfidenceThreshold ?? 0.7,
       enableLocalFallback: config.enableLocalFallback ?? true,
       enableInteractive: config.enableInteractive ?? true,
@@ -81,7 +84,7 @@ export class ECGDigitizer {
       // Stage 2: AI Analysis (if configured)
       let aiResult: AIAnalysisResult | undefined;
 
-      if (this.config.aiProvider !== 'none' && this.config.apiKey) {
+      if (this.config.aiProvider !== 'none' && this.config.apiKey && this.config.aiTransmissionAuthorization) {
         this.progress('ai_analysis', 10, 'Analyzing with AI...');
         const aiStart = Date.now();
 
@@ -91,7 +94,7 @@ export class ECGDigitizer {
             this.config.apiKey,
             this.config.model
           );
-          aiResult = await provider.analyze(imageData);
+          aiResult = await provider.analyze(imageData, this.config.aiTransmissionAuthorization);
 
           stages.push({
             name: 'ai_analysis',
