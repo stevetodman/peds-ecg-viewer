@@ -24,7 +24,7 @@ seaborn>=0.12
 tqdm>=4.65
 pyyaml>=6.0
 Flask>=3.0,<4
-flask-cors>=5.0,<7
+flask-cors>=6.0.5,<7
 gunicorn>=23.0,<24
 
 # Optional: Experiment Tracking
