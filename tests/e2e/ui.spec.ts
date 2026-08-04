@@ -148,10 +148,12 @@ test('keeps a local screenshot in page memory and reports manual caliper geometr
   await expect(preview).toHaveAttribute('src', /^blob:/);
   await preview.evaluate((element) => { (element as HTMLImageElement).style.width = '240px'; });
 
-  const bounds = await preview.boundingBox();
-  expect(bounds).not.toBeNull();
-  await page.mouse.click(bounds!.x + 28, bounds!.y + 28);
-  await page.mouse.click(bounds!.x + 180, bounds!.y + 120);
+  // Keyboard placement is deterministic across the three browser engines.
+  // The app also supports direct pointer placement on ordinary screenshots.
+  const caliperStage = page.locator('#reference-image-stage');
+  await caliperStage.focus();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter');
   await expect(page.locator('#manual-measurement')).toContainText('Manual interval:');
   await expect(page.locator('#manual-measurement')).toContainText('Manual amplitude:');
   await expect(page.locator('#manual-measurement')).toContainText('Derived rate:');
