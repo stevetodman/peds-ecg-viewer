@@ -141,15 +141,20 @@
           <input id="reference-image-input" type="file" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" hidden>
           <button type="button" class="secondary-button" data-control="open-reference-image" id="open-reference-image">Choose local screenshot</button>
           <button type="button" class="secondary-button" data-control="clear-reference-image" id="clear-reference-image">Clear screenshot</button>
+          <button type="button" class="primary-button" data-control="auto-trace-local" id="auto-trace-local" disabled data-disabled-reason="Choose a valid local screenshot before deterministic on-device tracing can begin." title="Choose a valid local screenshot before deterministic on-device tracing can begin." aria-describedby="auto-trace-disabled-reason">Auto-trace local screenshot</button>
+          <button type="button" class="secondary-button" data-control="reset-auto-trace" id="reset-auto-trace" disabled data-disabled-reason="Run local auto-trace before there is a candidate waveform to reset." title="Run local auto-trace before there is a candidate waveform to reset." aria-describedby="reset-auto-trace-disabled-reason">Reset candidate</button>
           <label for="screenshot-pixels-per-mm">Image scale</label>
           <input id="screenshot-pixels-per-mm" data-control="screenshot-pixels-per-mm" type="number" min="0.1" max="10000" step="0.1" value="8" inputmode="decimal" aria-describedby="screenshot-scale-help">
           <span id="screenshot-scale-help">image px/mm</span>
         </div>
         <p id="reference-image-status" class="screenshot-status" aria-live="polite">Choose a PNG, JPG, or WebP screenshot. It remains in this page’s memory only and is never uploaded.</p>
+        <p id="auto-trace-disabled-reason" class="sr-only">Choose a valid local screenshot before deterministic on-device tracing can begin.</p>
+        <p id="reset-auto-trace-disabled-reason" class="sr-only">Run local auto-trace before there is a candidate waveform to reset.</p>
         <div id="reference-image-stage" class="reference-image-stage" data-control="reference-image-stage" tabindex="0" role="group" aria-label="Manual caliper image workspace" aria-describedby="caliper-instructions">
           <p id="reference-image-placeholder">No local screenshot selected.</p>
           <div id="reference-image-frame" class="reference-image-frame" hidden>
             <img id="reference-image-preview" alt="Local ECG screenshot for manual visual caliper placement">
+            <canvas id="auto-trace-overlay" class="auto-trace-overlay" hidden aria-label="Candidate local trace overlay. Drag the cyan trace to make a visual correction."></canvas>
             <div id="caliper-overlay" class="caliper-overlay" aria-hidden="true" hidden>
               <span id="caliper-line" class="caliper-line"></span>
               <span id="caliper-point-a-marker" class="caliper-marker point-a">A</span>
@@ -164,6 +169,16 @@
           <p id="caliper-instructions">Choose point A or B, then select its location on the screenshot. Paper speed and gain above, plus the image scale here, are used only for this manual calculation.</p>
         </div>
         <output id="manual-measurement" class="manual-measurement" aria-live="polite">Manual interval, amplitude, and derived rate will appear after both points are placed.</output>
+        <section id="auto-trace-result" class="auto-trace-result" aria-labelledby="auto-trace-title" hidden>
+          <div>
+            <p class="eyebrow">Deterministic local candidate</p>
+            <h4 id="auto-trace-title">Screenshot trace evidence</h4>
+          </div>
+          <p id="auto-trace-status" class="auto-trace-status" aria-live="polite"></p>
+          <p id="auto-trace-evidence" class="auto-trace-evidence"></p>
+          <p id="auto-trace-reasons" class="auto-trace-reasons"></p>
+          <p class="auto-trace-limitation">This is a local geometric candidate only. It does not diagnose, classify rhythm, or establish clinical validity.</p>
+        </section>
       </section>
 
       <div class="viewer-layout">
@@ -233,6 +248,7 @@
 
   <script type="module">
     import { sampleECG } from './src/data/sample-ecg.ts';
+    import { autoTraceLocalScreenshot } from './src/signal/loader/png-digitizer/local-auto-tracer.ts';
 
     const INDEX_URL = './json_ecgs/index.json';
     const RECORD_ROOT = './json_ecgs/';
@@ -268,6 +284,8 @@
       zoom: 1,
       showGrid: true,
       referenceImage: null,
+      autoTrace: null,
+      autoTraceDragIndex: null,
       caliperPoints: { a: null, b: null },
       selectedCaliperPoint: 'a',
     };
@@ -682,14 +700,172 @@
     function clearReferenceImage(message = 'Local screenshot cleared from page memory.') {
       if (state.referenceImage?.objectUrl) URL.revokeObjectURL(state.referenceImage.objectUrl);
       state.referenceImage = null;
+      clearAutoTrace();
       const preview = byId('reference-image-preview');
       preview.removeAttribute('src');
       byId('reference-image-frame').hidden = true;
       byId('reference-image-placeholder').hidden = false;
       byId('reference-image-input').value = '';
+      byId('auto-trace-local').disabled = true;
       resetCalipers('');
       byId('reference-image-status').textContent = 'No local screenshot selected. Nothing is retained outside this page.';
       if (message) announce(message);
+    }
+
+    function clearAutoTrace() {
+      state.autoTrace = null;
+      state.autoTraceDragIndex = null;
+      byId('auto-trace-overlay').hidden = true;
+      byId('auto-trace-result').hidden = true;
+      byId('reset-auto-trace').disabled = true;
+    }
+
+    function renderAutoTrace() {
+      const candidate = state.autoTrace;
+      const resultSection = byId('auto-trace-result');
+      const overlay = byId('auto-trace-overlay');
+      if (!candidate) {
+        resultSection.hidden = true;
+        overlay.hidden = true;
+        byId('reset-auto-trace').disabled = true;
+        return;
+      }
+      const { result } = candidate;
+      resultSection.hidden = false;
+      byId('auto-trace-status').textContent = `Candidate status: ${result.status === 'manual-review' ? 'manual review' : result.status}.`;
+      const { grid, calibration, trace } = result.evidence;
+      byId('auto-trace-evidence').textContent = `Grid: ${grid.detected ? 'verified' : 'not verified'} (${Math.round(grid.confidence * 100)}%, ${grid.pxPerMm?.toFixed(1) || '—'} px/mm) · Calibration: ${calibration.pulseFound ? 'pulse verified' : 'grid only'} (${Math.round(calibration.confidence * 100)}%) · Trace: ${Math.round(trace.coverage * 100)}% coverage, ${Math.round(trace.meanPointConfidence * 100)}% point confidence, ${Math.round(trace.gapRatio * 100)}% gaps.`;
+      byId('auto-trace-reasons').textContent = result.reasons.length ? result.reasons.join(' ') : 'Grid, calibration pulse, and trace continuity met this local candidate threshold. Inspect visually before use.';
+      byId('reset-auto-trace').disabled = !candidate.points;
+      if (!candidate.points || !state.referenceImage) {
+        overlay.hidden = true;
+        return;
+      }
+      overlay.width = state.referenceImage.width;
+      overlay.height = state.referenceImage.height;
+      overlay.hidden = false;
+      const overlayContext = overlay.getContext('2d');
+      overlayContext.clearRect(0, 0, overlay.width, overlay.height);
+      overlayContext.lineJoin = 'round';
+      overlayContext.lineCap = 'round';
+      overlayContext.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+      overlayContext.lineWidth = 4;
+      overlayContext.beginPath();
+      candidate.points.forEach((point, index) => {
+        if (index === 0) overlayContext.moveTo(point.x, point.y);
+        else overlayContext.lineTo(point.x, point.y);
+      });
+      overlayContext.stroke();
+      overlayContext.strokeStyle = '#00a6c7';
+      overlayContext.lineWidth = 2;
+      overlayContext.stroke();
+    }
+
+    async function autoTraceReferenceImage() {
+      const image = state.referenceImage;
+      const preview = byId('reference-image-preview');
+      if (!image || !preview.complete || !preview.naturalWidth) {
+        announce('Choose a valid local screenshot before running local auto-trace.');
+        return;
+      }
+      const action = byId('auto-trace-local');
+      action.disabled = true;
+      action.textContent = 'Tracing locally…';
+      announce('Running deterministic on-device grid, calibration, and trace checks. No image data leaves this browser.');
+      try {
+        const imageCanvas = document.createElement('canvas');
+        imageCanvas.width = image.width;
+        imageCanvas.height = image.height;
+        imageCanvas.getContext('2d', { willReadFrequently: true }).drawImage(preview, 0, 0, image.width, image.height);
+        const result = await autoTraceLocalScreenshot(imageCanvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, image.width, image.height));
+        state.autoTrace = {
+          result,
+          points: result.trace ? result.trace.xPixels.map((x, index) => ({ x, y: result.trace.yPixels[index] })) : null,
+          originalPoints: result.trace ? result.trace.xPixels.map((x, index) => ({ x, y: result.trace.yPixels[index] })) : null,
+          manuallyAdjusted: false,
+        };
+        renderAutoTrace();
+        const nextStep = result.status === 'rejected' ? 'Automatic tracing was refused; use the manual calipers with the stated reasons.' : 'Inspect the cyan candidate; drag it to make a visual correction if needed.';
+        announce(`Local auto-trace ${result.status === 'manual-review' ? 'requires manual review' : result.status}. ${nextStep}`);
+      } catch (error) {
+        clearAutoTrace();
+        announce(`Local auto-trace could not complete safely: ${error instanceof Error ? error.message : 'unexpected image processing error'}. Use the manual calipers.`);
+      } finally {
+        action.disabled = !state.referenceImage;
+        action.textContent = 'Auto-trace local screenshot';
+      }
+    }
+
+    function resetAutoTrace() {
+      const candidate = state.autoTrace;
+      if (!candidate?.originalPoints) return;
+      candidate.points = candidate.originalPoints.map((point) => ({ ...point }));
+      candidate.manuallyAdjusted = false;
+      renderAutoTrace();
+      announce('Candidate trace restored to the deterministic local result.');
+    }
+
+    function candidatePointFromEvent(event) {
+      const candidate = state.autoTrace;
+      const overlay = byId('auto-trace-overlay');
+      if (!candidate?.points?.length || overlay.hidden) return null;
+      const bounds = overlay.getBoundingClientRect();
+      if (!bounds.width || !bounds.height) return null;
+      return {
+        x: Math.min(overlay.width, Math.max(0, (event.clientX - bounds.left) / bounds.width * overlay.width)),
+        y: Math.min(overlay.height, Math.max(0, (event.clientY - bounds.top) / bounds.height * overlay.height)),
+      };
+    }
+
+    function beginAutoTraceAdjustment(event) {
+      const point = candidatePointFromEvent(event);
+      const candidate = state.autoTrace;
+      if (!point || !candidate?.points) return;
+      let closestIndex = -1;
+      let closestDistance = Number.POSITIVE_INFINITY;
+      const step = Math.max(1, Math.floor(candidate.points.length / 2000));
+      for (let index = 0; index < candidate.points.length; index += step) {
+        const target = candidate.points[index];
+        const distance = Math.hypot(target.x - point.x, target.y - point.y);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestIndex = index;
+        }
+      }
+      const threshold = 14 / byId('auto-trace-overlay').getBoundingClientRect().width * byId('auto-trace-overlay').width;
+      if (closestDistance > threshold) return;
+      event.preventDefault();
+      event.stopPropagation();
+      state.autoTraceDragIndex = closestIndex;
+      byId('auto-trace-overlay').setPointerCapture(event.pointerId);
+    }
+
+    function adjustAutoTrace(event) {
+      const point = candidatePointFromEvent(event);
+      const candidate = state.autoTrace;
+      const index = state.autoTraceDragIndex;
+      if (!point || !candidate?.points || index == null) return;
+      event.preventDefault();
+      const radius = 3;
+      for (let offset = -radius; offset <= radius; offset += 1) {
+        const target = candidate.points[index + offset];
+        if (target) target.y = Math.min(state.referenceImage.height, Math.max(0, point.y));
+      }
+      candidate.manuallyAdjusted = true;
+      if (candidate.result.status !== 'rejected') {
+        candidate.result.status = 'manual-review';
+        if (!candidate.result.reasons.includes('Candidate waveform was manually adjusted and requires visual review.')) {
+          candidate.result.reasons.push('Candidate waveform was manually adjusted and requires visual review.');
+        }
+      }
+      renderAutoTrace();
+    }
+
+    function endAutoTraceAdjustment(event) {
+      if (state.autoTraceDragIndex == null) return;
+      state.autoTraceDragIndex = null;
+      if (byId('auto-trace-overlay').hasPointerCapture(event.pointerId)) byId('auto-trace-overlay').releasePointerCapture(event.pointerId);
+      announce('Candidate trace adjusted locally. It now requires manual review.');
     }
 
     function selectCaliperPoint(point) {
@@ -774,6 +950,7 @@
         byId('reference-image-frame').hidden = false;
         byId('reference-image-placeholder').hidden = true;
         byId('reference-image-status').textContent = `${file.name} is shown locally (${probe.naturalWidth} × ${probe.naturalHeight} px). It remains in page memory only and is never uploaded.`;
+        byId('auto-trace-local').disabled = false;
         updateCaliperSelection();
         renderCalipers();
         announce(`Loaded ${file.name} locally for manual caliper placement. No data was transmitted externally.`);
@@ -1002,11 +1179,17 @@
     byId('open-reference-image').addEventListener('click', () => byId('reference-image-input').click());
     byId('reference-image-input').addEventListener('change', (event) => loadReferenceImage(event.target.files?.[0]));
     byId('clear-reference-image').addEventListener('click', () => clearReferenceImage());
+    byId('auto-trace-local').addEventListener('click', autoTraceReferenceImage);
+    byId('reset-auto-trace').addEventListener('click', resetAutoTrace);
     byId('select-caliper-a').addEventListener('click', () => selectCaliperPoint('a'));
     byId('select-caliper-b').addEventListener('click', () => selectCaliperPoint('b'));
     byId('reset-calipers').addEventListener('click', () => resetCalipers());
     byId('reference-image-stage').addEventListener('click', placeCaliperPoint);
     byId('reference-image-stage').addEventListener('keydown', adjustCaliperPoint);
+    byId('auto-trace-overlay').addEventListener('pointerdown', beginAutoTraceAdjustment);
+    byId('auto-trace-overlay').addEventListener('pointermove', adjustAutoTrace);
+    byId('auto-trace-overlay').addEventListener('pointerup', endAutoTraceAdjustment);
+    byId('auto-trace-overlay').addEventListener('pointercancel', endAutoTraceAdjustment);
     byId('screenshot-pixels-per-mm').addEventListener('input', renderManualMeasurement);
     byId('load-sample').addEventListener('click', () => {
       state.record = syntheticRecord();

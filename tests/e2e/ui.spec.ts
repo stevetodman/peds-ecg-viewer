@@ -159,6 +159,13 @@ test('keeps a local screenshot in page memory and reports manual caliper geometr
   await expect(page.locator('#manual-measurement')).toContainText('Derived rate:');
   await expect(page.locator('#manual-measurement')).toContainText('not a diagnosis or rhythm conclusion');
 
+  // The explicit local action must safely refuse an image too small for the
+  // deterministic grid and trace checks, while leaving manual calipers usable.
+  await page.getByRole('button', { name: 'Auto-trace local screenshot' }).click();
+  await expect(page.locator('#auto-trace-result')).toBeVisible();
+  await expect(page.locator('#auto-trace-status')).toContainText('rejected');
+  await expect(page.locator('#auto-trace-reasons')).toContainText(/at least|manual calipers/i);
+
   await page.locator('#speed-select').selectOption('50');
   await page.locator('#gain-select').selectOption('20');
   await expect(page.locator('#manual-measurement')).toContainText('Derived rate:');

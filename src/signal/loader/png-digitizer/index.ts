@@ -23,6 +23,11 @@ export type {
   ValidatedECGScreenshotIntake,
 } from './intake';
 
+// Browser-safe deterministic screenshot tracing. This path never contacts an
+// AI provider or external service and returns evidence plus a conservative gate.
+export { autoTraceLocalScreenshot } from './local-auto-tracer';
+export type { LocalAutoTraceCandidate, LocalAutoTraceEvidence, LocalAutoTraceStatus } from './local-auto-tracer';
+
 // Guaranteed Digitizer (multi-tier AI fallback)
 export {
   GuaranteedDigitizer,
