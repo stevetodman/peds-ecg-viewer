@@ -3,18 +3,17 @@
 A gate is `PASS` only when raw evidence identifies the exact commit. `BLOCKED`
 is not equivalent to `PASS`.
 
-Engineering evidence below was executed on
-`6acf0024f4b21c82d47c21f9dedb23cfc06f7b89` on 2026-08-04.
+Engineering evidence below was executed through `4dc988c` on 2026-08-04.
 
 | Gate | Required evidence | State |
 |---|---|---|
-| Clean clone | Normal clone succeeds; LFS objects/pointers verified | Pending — clean clone not rerun; `npm run lfs:verify` verified 10 declared pointer artifacts |
-| Install | Locked install from empty cache | Pending |
+| Clean clone | Normal clone succeeds; LFS objects/pointers verified | Pass — full-history HTTPS clone of pushed `f08a50c` completed cleanly with 51 commits; `npm run lfs:verify` verified 10 declared pointer artifacts |
+| Install | Locked install from empty cache | Pass — `npm ci` succeeded in the full-history clean clone |
 | Type safety | Typecheck has zero errors | Pass — `npm run typecheck` |
 | Lint | Configured source lint has zero errors/warnings or reviewed exceptions | Pass — `npm run lint` |
 | Tests | Unit/integration pass; skips enumerated and justified | Pass — `npm test`: 27 files, 668 passed, 29 skipped because required external AI credentials were absent |
 | Build/package | Production build, pack dry-run, public import smoke | Pass — `npm run build` and `npm run package:check` (739985-byte package imported) |
-| Dependencies | Production critical/high zero; SBOM retained | Pass for audit threshold — `npm run audit:prod`: 0 vulnerabilities; SBOM still pending |
+| Dependencies | Production critical/high zero; SBOM retained | Partial — full `npm audit` and production audit report 0 vulnerabilities on `4dc988c`; SBOM still pending |
 | Browser | Chromium, Firefox, WebKit workflows pass | Pass — `npm run test:e2e`: 30 passed (10 per engine) |
 | UI inventory | Every enabled action tested; unsupported actions disabled | Pass — browser inventory test plus exact disabled-reason/title/description contract |
 | Accessibility | Automated serious/critical zero plus manual keyboard review | Partial — all browser axe checks have zero serious/critical findings and keyboard skip/scroll behavior passes; manual review pending |
@@ -34,7 +33,11 @@ ML-validity remain blocked. It cannot be called a routine clinical release.
 
 ## Exact command record
 
-- `npm run test:e2e` — 30 passed in 17.1 seconds across Chromium, Firefox, and
+- Full-history `git clone` of pushed `f08a50c` and `npm ci` both passed in a
+  new temporary directory.
+- On `4dc988c`, full `npm audit` reports 0 vulnerabilities after upgrading the
+  development toolchain.
+- `npm run test:e2e` — 30 passed in 8.7 seconds across Chromium, Firefox, and
   WebKit.
 - `npm test` — 668 passed, 29 skipped; skips are external-AI tests gated on
   unavailable API keys and are not evidence of ML validity.
