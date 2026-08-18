@@ -12,7 +12,7 @@ jobs:
   typescript:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           lfs: false
       - uses: actions/setup-node@v4
@@ -30,7 +30,7 @@ jobs:
   browser:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           lfs: false
       - uses: actions/setup-node@v4
@@ -44,7 +44,7 @@ jobs:
   python:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           lfs: false
       - uses: actions/setup-python@v5
@@ -58,7 +58,7 @@ jobs:
   lfs-integrity:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           lfs: true
       - uses: actions/setup-node@v4
