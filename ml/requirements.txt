@@ -1,6 +1,6 @@
 # Core ML
 torch>=2.0
-pytorch-lightning>=2.0
+pytorch-lightning>=2.6.5
 torchvision>=0.15
 
 # ECG Processing
